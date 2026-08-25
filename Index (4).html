@@ -630,7 +630,7 @@ function viaImg(file){
     var img = new Image();
     img.onload = function(){ URL.revokeObjectURL(url); res(img); };
     img.onerror = function(){ URL.revokeObjectURL(url); rej(); };
-    img.src = url;
+    img.src ="https://script.google.com/macros/s/AKfycbzsn8rc6BVVxT_A9ZvSNg1QczGswRuujXIeVrJ5MUesp2RIcaJ7huz9ZWFHJeGT7gFu/exec";
   });
 }
 
