@@ -31,7 +31,8 @@ export {
 } from './economy'
 export {
   computeRevenue, computeExpenses, computeLiability, stepFiscal, parcelLedger,
-  taxWeights, parcelPropertyTax, parcelSalesTax, requiredParking, costIndex,
+  taxWeights, parcelPropertyTax, parcelSalesTax, requiredParking, costIndex, priceIndex,
+  cityShortfall, borrowingHeadroom, committedCapital, localStreetCostPerFootYear, localStreetFeet,
 } from './fiscal'
 export type { ParcelLedgerRow, LiabilityBreakdown } from './fiscal'
 export { INSTRUMENTS, instrumentById, availableInstruments, instrumentsForTab } from './instruments'

@@ -31,6 +31,20 @@ export interface Instrument {
   disruption: number
   /** Whether the player has this tool yet. */
   unlockedBy: (state: SimState) => boolean
+  /**
+   * Why it is not available yet, stated as a condition. Mechanics only: it may
+   * say "available from year 3", never "available once you understand X".
+   */
+  unlockHint?: string
+  /**
+   * Constants behind the figures this card DISPLAYS - cost, annual cost,
+   * duration - so the player can ask where they came from.
+   *
+   * RULE, enforced by a test: never a constant behind an EFFECT. Listing the
+   * roundabout's crash modification factor here would tell the player what a
+   * roundabout does, which is the one thing an instrument must never do.
+   */
+  sourceKeys?: string[]
   /** Whether it can be applied right now. */
   applicable: (state: SimState) => boolean
   /** Applied to a draft state when construction finishes. */
@@ -160,6 +174,7 @@ const street: Instrument[] = [
   }),
   make({
     id: 'street.widen_sidewalks',
+    sourceKeys: ['SIDEWALK_COST_PER_SQFT', 'SIDEWALK_SERVICE_LIFE_YEARS'],
     tab: 'street',
     label: 'Widen footways to 10 feet',
     description: 'Rebuilds the footway on both sides at 10 feet. Takes width from the kerb line. Two construction seasons.',
@@ -172,6 +187,7 @@ const street: Instrument[] = [
   }),
   make({
     id: 'street.add_crossings',
+    sourceKeys: ['SIGNAL_CAPITAL_COST', 'SIGNAL_ANNUAL_MAINTENANCE'],
     tab: 'street',
     label: 'Halve the distance between crossings',
     description: 'Adds marked crossings with signals or beacons, halving the maximum distance between them.',
@@ -224,6 +240,7 @@ const street: Instrument[] = [
   }),
   make({
     id: 'street.plant_trees',
+    sourceKeys: ['STREET_TREE_PLANTING_COST', 'STREET_TREE_ANNUAL_COST', 'STREET_TREE_MATURITY_YEARS'],
     tab: 'street',
     label: 'Plant street trees',
     description: 'Adds 40 trees per mile per side in kerbside pits. Canopy takes about fifteen years to arrive.',
@@ -236,6 +253,7 @@ const street: Instrument[] = [
   }),
   make({
     id: 'street.pedestrian_lighting',
+    sourceKeys: ['STREETLIGHT_CAPITAL_COST_PER_POLE', 'STREETLIGHT_SPACING_FT', 'STREETLIGHT_ANNUAL_COST_PER_POLE'],
     tab: 'street',
     label: 'Replace lighting with pedestrian-scale poles',
     description: 'Doubles the pole count at half the mounting height. Roughly doubles the lighting line in the budget.',
@@ -247,6 +265,7 @@ const street: Instrument[] = [
   }),
   make({
     id: 'street.bus_lane',
+    unlockHint: 'Available once the corridor runs three buses an hour.',
     tab: 'street',
     label: 'Convert a lane each way to a bus lane',
     description: 'Removes one through lane per direction. Buses run about 25% faster on the corridor.',
@@ -263,6 +282,7 @@ const street: Instrument[] = [
   }),
   make({
     id: 'street.increase_transit',
+    sourceKeys: ['TRANSIT_OPERATING_COST_PER_REVENUE_HOUR', 'BUS_SPEED_MPH', 'TRANSIT_FARE'],
     tab: 'street',
     label: 'Add two buses per hour',
     description: 'Increases service on the corridor route. Costs operating subsidy every year, for ever.',
@@ -280,6 +300,7 @@ const street: Instrument[] = [
 const land: Instrument[] = [
   make({
     id: 'land.reduce_parking_minimums',
+    sourceKeys: ['PARKING_STALL_AREA_SQFT', 'PARKING_MINIMUM_COST_PER_UNIT'],
     tab: 'land',
     label: 'Halve parking minimums',
     description: 'Halves the required stalls per 1,000 sqft of retail and per dwelling. Applies to new development only.',
@@ -292,6 +313,8 @@ const land: Instrument[] = [
   }),
   make({
     id: 'land.abolish_parking_minimums',
+    sourceKeys: ['PARKING_STALL_AREA_SQFT', 'PARKING_MINIMUM_COST_PER_UNIT', 'STRUCTURED_PARKING_COST_PER_STALL'],
+    unlockHint: 'Available once the minimum has been reduced at least once.',
     tab: 'land',
     label: 'Abolish parking minimums',
     description: 'Removes the requirement entirely. Developers may still build parking.',
@@ -352,6 +375,7 @@ const land: Instrument[] = [
   }),
   make({
     id: 'land.form_based_code',
+    unlockHint: 'Available from year 4, and once mixed use is permitted.',
     tab: 'land',
     label: 'Adopt a form-based code',
     description: 'Replaces use-based zoning on the corridor with rules about building form and frontage. Takes two years to draft and adopt.',
@@ -385,6 +409,7 @@ const land: Instrument[] = [
 const fiscal: Instrument[] = [
   make({
     id: 'fiscal.raise_property_tax',
+    sourceKeys: ['EFFECTIVE_PROPERTY_TAX_RATE_COMMERCIAL', 'CITY_SHARE_OF_PROPERTY_LEVY'],
     tab: 'fiscal',
     label: 'Raise the property tax rate by 10%',
     description: 'Multiplies the city portion of the rate by 1.1. Applies to every parcel on the corridor.',
@@ -394,6 +419,7 @@ const fiscal: Instrument[] = [
   }),
   make({
     id: 'fiscal.cut_property_tax',
+    sourceKeys: ['EFFECTIVE_PROPERTY_TAX_RATE_COMMERCIAL', 'CITY_SHARE_OF_PROPERTY_LEVY'],
     tab: 'fiscal',
     label: 'Cut the property tax rate by 10%',
     description: 'Multiplies the city portion of the rate by 0.9.',
@@ -403,6 +429,8 @@ const fiscal: Instrument[] = [
   }),
   make({
     id: 'fiscal.land_value_shift',
+    sourceKeys: ['EFFECTIVE_PROPERTY_TAX_RATE_COMMERCIAL', 'EFFECTIVE_PROPERTY_TAX_RATE_RESIDENTIAL'],
+    unlockHint: 'Available from year 3.',
     tab: 'fiscal',
     label: 'Shift a quarter of the levy onto land value',
     description: 'Moves 25% of the assessment weight from buildings onto land. Revenue-neutral in the year it is adopted; individual bills change.',
@@ -414,6 +442,7 @@ const fiscal: Instrument[] = [
   }),
   make({
     id: 'fiscal.price_parking',
+    sourceKeys: ['PARKING_STALL_AREA_SQFT'],
     tab: 'fiscal',
     label: 'Meter the kerb at $1.50 an hour',
     description: 'Installs meters on kerbside stalls. Requires kerbside parking to exist.',
@@ -428,6 +457,7 @@ const fiscal: Instrument[] = [
   }),
   make({
     id: 'fiscal.raise_meter_price',
+    unlockHint: 'Available once the kerb is metered.',
     tab: 'fiscal',
     label: 'Raise the meter rate by 50 cents',
     description: 'Increases the hourly kerb rate.',
@@ -456,6 +486,7 @@ const fiscal: Instrument[] = [
   }),
   make({
     id: 'fiscal.tif_district',
+    unlockHint: 'Available from year 2.',
     tab: 'fiscal',
     label: 'Create a tax increment district',
     description: 'Freezes the corridor tax base at today’s value. Growth above it funds corridor capital work instead of the general fund, for twenty years.',
@@ -469,6 +500,7 @@ const fiscal: Instrument[] = [
   }),
   make({
     id: 'fiscal.business_improvement_district',
+    unlockHint: 'Available from year 2.',
     tab: 'fiscal',
     label: 'Form a business improvement district',
     description: 'A 0.4% surcharge on commercial assessed value, collected from corridor businesses.',
@@ -486,6 +518,8 @@ const fiscal: Instrument[] = [
 const capital: Instrument[] = [
   make({
     id: 'capital.state_widening',
+    sourceKeys: ['STATE_GRANT_MATCH_RATIO', 'ROAD_RECONSTRUCT_COST_PER_LANE_MILE', 'ROAD_ROUTINE_MAINTENANCE_PER_LANE_MILE', 'PAVEMENT_RECONSTRUCT_CYCLE_YEARS'],
+    unlockHint: 'The offer expires after year 2.',
     tab: 'capital',
     label: 'Accept the state DOT widening grant',
     description: 'The state funds 90% of construction to add one through lane each way. The city pays the remaining 10% and takes ownership of the finished roadway, including all future maintenance and reconstruction. Three construction seasons. Offer expires after year 2.',
@@ -517,6 +551,7 @@ const capital: Instrument[] = [
   }),
   make({
     id: 'capital.repave',
+    sourceKeys: ['ROAD_RESURFACE_COST_PER_LANE_MILE', 'PAVEMENT_RESURFACE_CYCLE_YEARS', 'INFLATION_RATE'],
     tab: 'capital',
     label: 'Mill and overlay the corridor',
     description: 'Resurfaces every lane. Resets pavement age. One construction season.',
@@ -529,6 +564,7 @@ const capital: Instrument[] = [
   }),
   make({
     id: 'capital.reconstruct',
+    sourceKeys: ['ROAD_RECONSTRUCT_COST_PER_LANE_MILE', 'PAVEMENT_RECONSTRUCT_CYCLE_YEARS', 'INFLATION_RATE'],
     tab: 'capital',
     label: 'Fully reconstruct the corridor',
     description: 'Rebuilds the roadway to full depth including drainage. Resets pavement age. Three construction seasons.',
@@ -552,6 +588,7 @@ const capital: Instrument[] = [
   }),
   make({
     id: 'capital.add_lane',
+    sourceKeys: ['ROAD_RECONSTRUCT_COST_PER_LANE_MILE', 'ROAD_ROUTINE_MAINTENANCE_PER_LANE_MILE'],
     tab: 'capital',
     label: 'Add one through lane each way',
     description: 'Widens the roadway by one lane per direction. Adds 2.4 lane-miles to the maintenance obligation permanently. Three construction seasons.',
@@ -564,6 +601,7 @@ const capital: Instrument[] = [
   }),
   make({
     id: 'capital.roundabout',
+    unlockHint: 'Available from year 3.',
     tab: 'capital',
     label: 'Convert a signal to a roundabout',
     description: 'Replaces one signalised intersection with a roundabout. Removes that signal from the maintenance budget. Two construction seasons.',
@@ -577,6 +615,7 @@ const capital: Instrument[] = [
   }),
   make({
     id: 'capital.plaza_end',
+    unlockHint: 'Available from year 5.',
     tab: 'capital',
     label: 'Convert the east end block to a plaza',
     description: 'Closes the easternmost block to through traffic and paves it as public space. Two construction seasons.',
@@ -591,6 +630,7 @@ const capital: Instrument[] = [
   }),
   make({
     id: 'capital.plaza_middle',
+    unlockHint: 'Available from year 5.',
     tab: 'capital',
     label: 'Convert a central block to a plaza',
     description: 'Closes one mid-corridor block to through traffic and paves it as public space. Two construction seasons.',
@@ -628,6 +668,8 @@ const capital: Instrument[] = [
   }),
   make({
     id: 'capital.undergrounding',
+    sourceKeys: ['UTILITY_UNDERGROUNDING_COST_PER_MILE'],
+    unlockHint: 'Available from year 6.',
     tab: 'capital',
     label: 'Put the overhead utilities underground',
     description: 'Removes poles and overhead wires along the corridor. Three construction seasons. Very expensive.',
@@ -641,6 +683,7 @@ const capital: Instrument[] = [
   }),
   make({
     id: 'capital.transit_stops',
+    unlockHint: 'Available once a bus runs on the corridor.',
     tab: 'capital',
     label: 'Upgrade the bus stops',
     description: 'Shelters, seating, lighting and real-time signs at every stop on the corridor.',

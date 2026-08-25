@@ -11,7 +11,8 @@
 import { C } from './constants'
 import { corridorAcres, createInitialState } from './corridor'
 import {
-  computeExpenses, computeLiability, computeRevenue, countNewDwellings, stepFiscal,
+  borrowingHeadroom, committedCapital, computeExpenses, computeLiability, computeRevenue,
+  countNewDwellings, stepFiscal,
 } from './fiscal'
 import { costIndex, priceIndex } from './fiscal'
 import { checkGlossary } from './glossary'
@@ -108,6 +109,9 @@ export function advanceYear(state: SimState, chosenInstrumentIds: readonly strin
   next.events = []
 
   // --- 1. Commit to this year's instruments ---
+  // Money is as real a constraint as political capital. The city can borrow,
+  // but not without limit, and the limit tightens as the debt grows.
+  let headroom = borrowingHeadroom(next) - committedCapital(next)
   for (const id of chosenInstrumentIds) {
     const instrument = instrumentById(id)
     if (!instrument) { rejected.push({ instrumentId: id, reason: 'unknown instrument' }); continue }
@@ -116,8 +120,11 @@ export function advanceYear(state: SimState, chosenInstrumentIds: readonly strin
     const pc = instrument.pcCost(next)
     if (pc > next.politics.capital) { rejected.push({ instrumentId: id, reason: 'not enough political capital' }); continue }
 
-    next.politics.capital -= pc
     const cost = instrument.capitalCost(next)
+    if (cost > headroom) { rejected.push({ instrumentId: id, reason: 'not enough borrowing capacity' }); continue }
+
+    next.politics.capital -= pc
+    headroom -= cost
     const annual = instrument.annualCost(next)
 
     if (instrument.constructionYears === 0) {

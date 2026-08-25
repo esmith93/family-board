@@ -20,7 +20,7 @@ first, headless and tested, so that the argument exists before the pixels do.
 | --- | --- | --- |
 | 1 | Simulation core, `MODEL.md`, tests | **done** |
 | 2 | Isometric renderer + procedural sprite factory | **done** |
-| 3 | Instruments UI + two-currency economy | not started |
+| 3 | Instruments UI + two-currency economy | **done** |
 | 4 | Year advance + newspaper generator | not started |
 | 5 | Raycaster (drive) and side-scroll (walk) cameras | not started |
 | 6 | Web Audio synthesis | not started |
@@ -32,15 +32,17 @@ first, headless and tested, so that the argument exists before the pixels do.
 ```bash
 npm install
 npm run dev       # the isometric view, at localhost:5173
-npm test          # 194 tests across the model and the renderer
+npm test          # 222 tests across the model, the renderer and the economy
 npm run model     # regenerate MODEL.md from the constant registry
 npm run sim       # play four scripted strategies and print thirty years of each
 npm run sweep     # compare strategies across thirteen generated corridors
 ```
 
 In the view: **drag** to pan, **wheel** to zoom, **space** to advance a year,
-**1–4** for day / dusk / night / overcast, **Q W E T** for the seasons, and a
-handful of letter keys for the instruments that most change the picture.
+**1–4** for day / dusk / night / overcast, **Q W E T** for the seasons.
+Instruments are in the dock at the bottom; the caret at its right collapses it.
+
+Pin a corridor with `?seed=fairview` if you want the same one twice.
 
 ## What is in here
 
@@ -60,6 +62,11 @@ src/sim/            The simulation. Pure, headless, deterministic, no DOM.
   instruments.ts    What the player can do, and what it costs.
   glossary.ts       Vocabulary the player earns by causing the thing.
   step.ts           One year of Fairview.
+src/ui/             The chrome: instruments, the two currencies, the cold open.
+  app.ts            Meters, tabs, cards, the commit rail, the year advance.
+  opening.ts        The budget, the job, and the ninety-ten offer.
+  why.ts            "Why this number?" - provenance for any figure on screen.
+  format.ts         How money and durations are written.
 src/render/         The isometric view. No image assets anywhere.
   palette.ts        Thirty-two colours, and the light and season lookup tables.
   bitmap.ts         A rasteriser that writes palette INDICES, not colours.
@@ -119,7 +126,26 @@ the model cannot disagree — a test fails if the file on disk falls behind.
   citation they do not have
 - **24** sit on literature where researchers actively disagree, and say so
 
-The in-game "Why this number?" panel reads the same registry.
+The in-game **"Why this number?"** panel reads the same registry: click a figure
+and it gives the value, the plausible range, whether researchers agree, a note,
+and a link to the source. Where the literature is contested it says so on the
+card rather than presenting a disputed figure with a confident face.
+
+## The two currencies
+
+**Money.** The corridor's own ledger, and the city's shortfall above it, which
+moves dollar for dollar with it. Capital work can be borrowed for, but borrowing
+capacity shrinks as debt grows, so the back half of a bad run is airless: every
+instrument is still there and none of them can be paid for.
+
+**Political capital.** Earned by visible wins, spent on unpopular moves. It
+accrues faster at high approval, drains below about a fifth, and at zero the
+council replaces you. A road diet costs more political capital on a congested
+corridor than on a quiet one, because it does.
+
+The tension is that the correct move is usually the politically expensive one,
+and some years neither currency stretches far enough. That is not a balance
+problem to be fixed. It is the subject.
 
 ## The anti-goals
 
@@ -136,6 +162,12 @@ These are enforced by tests, not by good intentions:
   parks goes unused; a bus route below the density threshold burns subsidy and carries
   nobody. Both are tested.
 - No villains. No praise for the player's values.
+- An instrument may cite the constants behind the figures it **shows** — what a
+  lane-mile costs, how long a pavement lasts — and never the constants behind
+  what it **does**. Putting the roundabout's crash modification factor on its
+  card would tell the player what a roundabout is for. A test enforces this.
+- The reserved vocabulary is kept out of every string in `src/ui/`, scanned by
+  a test that also checks it found text to scan.
 
 ## Notes on the model
 

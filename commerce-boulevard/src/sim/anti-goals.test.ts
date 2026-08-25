@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { INSTRUMENTS } from './instruments'
+import { CONSTANT_REGISTRY } from './constants'
 import { GLOSSARY_CARDS } from './glossary'
 import { newGame, advanceYear } from './step'
 
@@ -144,6 +145,63 @@ describe('anti-goal 3: car-centric choices genuinely work in years 1-8', () => {
     // It is stated plainly - the trap is that it is true and still tempting,
     // not that it is concealed.
     expect(instrument.description.toLowerCase()).toContain('maintenance')
+  })
+})
+
+describe('an instrument never reveals its own effect', () => {
+  /**
+   * A card may cite the constants behind the figures it SHOWS - what a
+   * lane-mile costs, how long a pavement lasts. It may never cite the
+   * constants behind what the instrument DOES. Listing the roundabout's crash
+   * modification factor on its card would tell the player what a roundabout is
+   * for, which is the one thing the card must not do.
+   */
+  const EFFECT_KEY = /^CMF_|ELASTICITY|FATALITY|SEVERITY|CRASH|NOISE|TEMP|PM25|NO2|WILLING|APPROVAL|UHI|CANOPY_COOLING|DAYS_OVER/
+
+  it('cites only cost-side constants', () => {
+    for (const instrument of INSTRUMENTS) {
+      for (const key of instrument.sourceKeys ?? []) {
+        expect(EFFECT_KEY.test(key), `"${instrument.id}" cites "${key}", which is an effect`).toBe(false)
+      }
+    }
+  })
+
+  it('cites constants that actually exist', () => {
+    for (const instrument of INSTRUMENTS) {
+      for (const key of instrument.sourceKeys ?? []) {
+        expect(CONSTANT_REGISTRY[key], `"${instrument.id}" cites unknown constant "${key}"`).toBeDefined()
+      }
+    }
+  })
+
+  it('states unlock conditions as mechanics, never as encouragement', () => {
+    for (const instrument of INSTRUMENTS) {
+      const hint = instrument.unlockHint
+      if (!hint) continue
+      const lower = hint.toLowerCase()
+      for (const word of [...RESERVED_VOCABULARY, ...ADVOCACY_LANGUAGE]) {
+        expect(lower, `"${instrument.id}" unlock hint contains "${word}"`).not.toContain(word)
+      }
+      expect(lower.startsWith('available') || lower.startsWith('the offer'), `"${instrument.id}": ${hint}`).toBe(true)
+    }
+  })
+})
+
+describe('the interface says no more than the instruments do', () => {
+  it('keeps the reserved vocabulary out of every screen the player reads', async () => {
+    const { readdirSync, readFileSync } = await import('node:fs')
+    const dir = new URL('../ui/', import.meta.url)
+    for (const file of readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))) {
+      const source = readFileSync(new URL(file, dir), 'utf8')
+      // Only the strings: code identifiers and comments are not shown to anyone.
+      const strings = [...source.matchAll(/'((?:[^'\\\n]|\\.)*)'|`([^`]*)`/g)]
+        .map((m) => (m[1] ?? m[2] ?? '')).join(' ').toLowerCase()
+      // Guard against a broken extraction making this test vacuous.
+      expect(strings.length, `${file}: found no player-facing text to check`).toBeGreaterThan(40)
+      for (const word of RESERVED_VOCABULARY) {
+        expect(strings, `${file} shows the player "${word}"`).not.toContain(word)
+      }
+    }
   })
 })
 

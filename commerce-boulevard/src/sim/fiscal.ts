@@ -326,6 +326,45 @@ export function stepFiscal(
   }
 }
 
+/**
+ * What the city's general fund looks like because of this corridor.
+ *
+ * Fairview opens $4.1M short. Commerce Blvd is one corridor among many, but it
+ * is the one the player has, so the city's shortfall moves with it: every
+ * dollar the corridor's ledger improves is a dollar off the city's hole, and
+ * every dollar it worsens goes on.
+ *
+ * This is the number in the cold open, and the number the player is judged on
+ * by everybody who has never heard of a lane-mile.
+ */
+export function cityShortfall(state: SimState): number {
+  const baselineSurplus = state.history[0]?.surplus ?? 0
+  const change = state.fiscal.surplus - baselineSurplus
+  return C.OPENING_DEFICIT - change
+}
+
+/**
+ * How much the city could still borrow.
+ *
+ * Not a hard legal limit so much as the point at which the bond market and the
+ * council stop cooperating. It shrinks as debt grows, which is what makes the
+ * back half of a bad run so airless: the instruments are all still there, and
+ * none of them can be paid for.
+ */
+export function borrowingHeadroom(state: SimState): number {
+  const ceiling = state.fiscal.revenue.total * 3.5
+  return Math.max(0, ceiling - state.fiscal.debt + state.fiscal.reserve)
+}
+
+/** Capital already committed to projects still under construction. */
+export function committedCapital(state: SimState): number {
+  let total = 0
+  for (const project of state.activeProjects) {
+    total += (project.totalCost / Math.max(1, project.yearsRemaining)) * project.yearsRemaining
+  }
+  return total
+}
+
 // ---------------------------------------------------------------------------
 // The Ledger View
 // ---------------------------------------------------------------------------

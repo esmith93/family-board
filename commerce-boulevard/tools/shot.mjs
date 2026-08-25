@@ -1,51 +1,70 @@
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
 
-const url = process.argv[2] ?? 'http://localhost:5173/'
+const url = process.argv[2] ?? 'http://localhost:5180/'
 const outDir = process.argv[3] ?? 'shots'
 mkdirSync(outDir, { recursive: true })
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
-const page = await browser.newPage({ viewport: { width: 1440, height: 860 }, deviceScaleFactor: 1 })
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 })
 const errors = []
 page.on('pageerror', (e) => errors.push(String(e)))
-page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
+page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('favicon')) errors.push(m.text()) })
 
-await page.goto(url, { waitUntil: 'networkidle' })
+await page.goto(`${url}?seed=fairview`, { waitUntil: 'networkidle' })
+await page.waitForTimeout(1500)
+
+const shot = (n) => page.screenshot({ path: `${outDir}/${n}.png` })
+const click = async (sel) => { await page.click(sel); await page.waitForTimeout(500) }
+
+await shot('10-budget')
+await click('#ok')
+await shot('11-job')
+await click('#ok')
+await shot('12-grant')
+
+// Ask where the grant's numbers come from.
+await click('#grantwhy')
+await shot('13-why')
+await click('#whyclose')
+
+await click('#accept')
 await page.waitForTimeout(2500)
+await shot('14-instruments')
 
-const shots = [
-  { name: '01-year0-day', keys: [] },
-  { name: '02-dusk', keys: ['3'] },
-  { name: '03-night', keys: [] },
-  { name: '04-autumn', keys: ['e'] },
-]
-// day, dusk, night, overcast are 1..4
-await page.screenshot({ path: `${outDir}/01-day.png` })
-await page.keyboard.press('2'); await page.waitForTimeout(400)
-await page.screenshot({ path: `${outDir}/02-dusk.png` })
-await page.keyboard.press('3'); await page.waitForTimeout(400)
-await page.screenshot({ path: `${outDir}/03-night.png` })
-await page.keyboard.press('1'); await page.keyboard.press('e'); await page.waitForTimeout(500)
-await page.screenshot({ path: `${outDir}/04-autumn.png` })
-void shots
+// Look at another tab, and select a couple of things.
+await click('[data-tab="land"]')
+await shot('15-landuse')
+await page.click('.card[data-id="land.reduce_parking_minimums"]')
+await page.click('[data-tab="street"]')
+await page.click('.card[data-id="street.plant_trees"]')
+await page.waitForTimeout(400)
+await shot('16-committing')
 
-// Play the corridor forward with a few instruments, to see the picture change.
-await page.keyboard.press('1'); await page.keyboard.press('w'); await page.waitForTimeout(300)
-for (const key of ['m', 'm', 'd', 'n', 'p', 'k', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']) {
-  await page.keyboard.press(key === ' ' ? 'Space' : key)
-  await page.waitForTimeout(140)
+// Advance several years to see works in progress and the picture change.
+const dismiss = async () => {
+  for (const sel of ['#gok', '#again', '#whyclose']) {
+    const node = await page.$(sel)
+    if (node && await node.isVisible()) { await node.click(); await page.waitForTimeout(300) }
+  }
 }
+for (let i = 0; i < 7; i++) {
+  await dismiss()
+  const advance = await page.$('#advance')
+  if (!advance || await advance.isDisabled()) break
+  await advance.click()
+  await page.waitForTimeout(700)
+}
+await dismiss()
 await page.waitForTimeout(2000)
-await page.screenshot({ path: `${outDir}/06-transformed.png` })
+await shot('17-played')
 
-// Zoom right in to inspect sprite quality.
-for (let i = 0; i < 7; i++) { await page.mouse.wheel(0, -200); await page.waitForTimeout(60) }
-await page.waitForTimeout(2500)
-await page.screenshot({ path: `${outDir}/05-closeup.png` })
-
-const stats = await page.evaluate(() => document.getElementById('stats')?.innerText ?? '')
+const stats = await page.evaluate(() => ({
+  meters: document.getElementById('meters')?.innerText ?? '',
+  hint: document.getElementById('hint')?.innerText ?? '',
+}))
 await browser.close()
-console.log('stats:\n' + stats)
-if (errors.length) { console.log('ERRORS:'); for (const e of errors.slice(0, 10)) console.log(' ', e) }
+console.log(stats.meters.replace(/\n+/g, ' | '))
+console.log(stats.hint)
+if (errors.length) { console.log('ERRORS:'); for (const e of errors.slice(0, 8)) console.log(' ', e) }
 else console.log('no console errors')
