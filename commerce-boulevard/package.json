@@ -6,7 +6,7 @@
   "description": "Commerce Boulevard - a thirty-year municipal finance simulation",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.3.0",
+    "playwright": "^1.62.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
     "vitest": "^2.1.4"

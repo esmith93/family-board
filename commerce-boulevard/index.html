@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Commerce Boulevard</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #14161f; overflow: hidden;
+    font: 13px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: #e8e2d4; }
+  #view { display: block; width: 100%; height: 100%; image-rendering: pixelated; cursor: grab; }
+  #view.dragging { cursor: grabbing; }
+  .panel { position: fixed; background: rgba(22, 24, 34, 0.9); border: 1px solid #3a3552;
+    border-radius: 6px; padding: 10px 12px; backdrop-filter: blur(4px); }
+  #hud { top: 12px; left: 12px; min-width: 260px; }
+  #hud h1 { margin: 0 0 6px; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #d0a97d; }
+  #hud dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 12px; margin: 0; }
+  #hud dt { color: #9d978a; }
+  #hud dd { margin: 0; text-align: right; }
+  #keys { bottom: 12px; left: 12px; color: #9d978a; max-width: 420px; }
+  #keys b { color: #ecca9f; font-weight: 600; }
+  #stats { top: 12px; right: 12px; color: #9d978a; text-align: right; }
+  .warn { color: #c06a55; }
+  .good { color: #8fb063; }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div class="panel" id="hud">
+  <h1>Commerce Blvd &mdash; Fairview</h1>
+  <dl id="readout"></dl>
+</div>
+
+<div class="panel" id="stats"></div>
+
+<div class="panel" id="keys">
+  <b>drag</b> pan &nbsp; <b>wheel</b> zoom &nbsp; <b>space</b> advance a year &nbsp; <b>R</b> restart<br>
+  <b>1&ndash;4</b> day / dusk / night / overcast &nbsp; <b>Q W E T</b> spring / summer / autumn / winter<br>
+  <b>W</b> widen (year 0&ndash;2) &nbsp; <b>D</b> road diet &nbsp; <b>B</b> bike lane &nbsp; <b>P</b> plant trees &nbsp; <b>M</b> mixed use
+</div>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
