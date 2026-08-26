@@ -22,6 +22,7 @@ import {
   type WalkFrame, type WalkState, type WalkWorld,
 } from '../render/walk'
 import type { SimState } from '../sim/index'
+import type { Sound } from '../audio/sound'
 
 const MPH_TO_FPS = 5280 / 3600
 
@@ -62,7 +63,7 @@ export class FirstPerson {
   private held: Held = { up: false, down: false, left: false, right: false }
   private onClose: (() => void) | null = null
 
-  constructor() {
+  constructor(private readonly sound: Sound) {
     this.canvas = document.getElementById('fpview') as HTMLCanvasElement
     this.canvas.width = NATIVE_W
     this.canvas.height = NATIVE_H
@@ -95,9 +96,11 @@ export class FirstPerson {
     if (mode === 'drive') {
       this.driveWorld = buildDriveWorld(state)
       this.drive = newDrive(this.driveWorld)
+      this.sound.inCar(this.driveWorld, this.drive)
     } else {
       this.walkWorld = buildWalkWorld(state)
       this.walk = newWalk(this.walkWorld)
+      this.sound.atKerb(this.walkWorld, this.walk)
     }
     document.body.classList.add('firstperson')
     document.getElementById('fp')!.classList.remove('hidden')
@@ -150,11 +153,15 @@ export class FirstPerson {
       this.drive = stepDrive(this.driveWorld, this.drive, { throttle, steer }, dt)
       renderDrive(this.driveWorld, this.drive, this.driveFrame, nowMs)
       this.paint(this.driveFrame.pixels)
+      // Your own wheels change with the throttle, so the mix goes with the
+      // frame here rather than on the state clock.
+      this.sound.inCar(this.driveWorld, this.drive)
     } else if (this.walkWorld && this.walk) {
       const along = (this.held.right ? 1 : 0) - (this.held.left ? 1 : 0)
       this.walk = stepWalk(this.walkWorld, this.walk, { along, cross: this.held.up }, dt)
       renderWalk(this.walkWorld, this.walk, this.walkFrame, nowMs)
       this.paint(this.walkFrame.pixels)
+      this.sound.atKerb(this.walkWorld, this.walk)
     }
 
     this.renderHud()

@@ -23,7 +23,7 @@ import {
 import type { CorridorModel } from './corridor'
 import { corridorModel } from './corridor'
 import { P } from './palette'
-import { effectiveGreenRatio, operatingSpeedMph, segmentOf, type SimState } from '../sim/index'
+import { C, effectiveGreenRatio, operatingSpeedMph, segmentOf, type SimState } from '../sim/index'
 
 const MPH_TO_FPS = 5280 / 3600
 const EYE_HEIGHT_FT = 3.9
@@ -70,8 +70,12 @@ export interface DriveWorld {
   pavementAgeYears: number
   aadt: number
   year: number
+  /** What the model says it is like to stand next to this, in dBA. */
+  kerbNoiseDba: number
   /** Vehicles per second in one running lane at the peak. */
   flowPerLaneSec: number
+  /** Running lanes in both directions. */
+  laneCount: number
 }
 
 export function buildDriveWorld(state: SimState): DriveWorld {
@@ -156,9 +160,12 @@ export function buildDriveWorld(state: SimState): DriveWorld {
     pavementAgeYears: street.pavementAgeYears,
     aadt: state.traffic.aadt,
     year: state.year,
+    kerbNoiseDba: state.environment.sidewalkNoiseDba,
     // Ten per cent of the day in the peak hour, split over the running lanes,
     // which is the usual rule for an arterial.
-    flowPerLaneSec: runningLanes > 0 ? (state.traffic.aadt * 0.1) / runningLanes / 3600 : 0,
+    flowPerLaneSec: runningLanes > 0
+      ? (state.traffic.aadt * C.PEAK_HOUR_SHARE_OF_AADT) / runningLanes / 3600 : 0,
+    laneCount: Math.max(1, runningLanes),
   }
 }
 

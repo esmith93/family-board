@@ -217,6 +217,11 @@ const S = {
     url: 'https://www.fhwa.dot.gov/environment/noise/traffic_noise_model/old_versions/tnm_version_10/tech_manual/tnm00.cfm',
     year: '1998',
   },
+  euroNoiseTyre: {
+    title: 'Sandberg & Ejsmont, "The multi-coincidence peak around 1000 Hz in tyre/road noise spectra", EuroNoise',
+    url: 'https://informex.info/Multi-coincidence_peak_-_EuroNoise_ppr.pdf',
+    year: '2003',
+  },
   whoNoise: {
     title: 'WHO Regional Office for Europe, Environmental Noise Guidelines for the European Region',
     url: 'https://iris.who.int/bitstream/handle/10665/279952/9789289053563-eng.pdf',
@@ -1463,6 +1468,83 @@ const politics = defineConstants({
 // Exports
 // ---------------------------------------------------------------------------
 
+/*
+ * What the corridor sounds like.
+ *
+ * The noise model above already says how loud it is. These say what that
+ * loudness is made of, so the synthesiser can be a rendering of the model
+ * rather than a mood. Nothing here is invented where a measurement exists,
+ * and where one does not the constant says so.
+ */
+const audio = defineConstants({
+  PEAK_HOUR_SHARE_OF_AADT: {
+    label: 'Share of a day\'s traffic that arrives in the peak hour',
+    value: 0.095, unit: 'fraction', low: 0.08, high: 0.11,
+    source: S.hpmsCapacity, confidence: 'contextual',
+    note: 'The K-factor. Urban arterials run eight to ten per cent; rural roads run higher because their days are peakier. It converts the one number everybody quotes about a road into the one that decides whether you can cross it.',
+  },
+  AUDIO_FULL_SCALE_DBA: {
+    label: 'Sound level that maps to digital full scale',
+    value: 88, unit: 'dBA', low: 84, high: 94,
+    source: S.design, confidence: 'settled',
+    note: 'The anchor that makes the mix a real decibel scale instead of a slider. Every level in the game is 10^((dBA-88)/20), so a corridor the model says is 16 dB quieter is a quarter as loud, and the player hears the model rather than a designer.',
+  },
+  TYRE_NOISE_PEAK_HZ: {
+    label: 'Centre frequency of tyre-pavement noise',
+    value: 1000, unit: 'Hz', low: 800, high: 1250,
+    source: S.euroNoiseTyre, confidence: 'settled',
+    note: 'Tyre/road noise spectra peak around 1 kHz for passenger cars, from the coincidence of tread pitch, pipe and Helmholtz resonance, the horn effect and the road texture spectrum. Heavy vehicles sit lower, 500 to 1000 Hz.',
+  },
+  TYRE_PEAK_HZ_PER_SPEED_DOUBLING: {
+    label: 'Shift in the tyre noise peak per doubling of speed',
+    value: 1.19, unit: 'ratio', low: 1.0, high: 1.4,
+    source: S.design, confidence: 'contextual',
+    note: 'The peak itself is set by resonances and moves little with speed; what changes is the balance of the spectrum above and below it. Modelled here as a modest upward shift because that is what the ear reports - a road brightens as it speeds up.',
+  },
+  ENGINE_FIRING_HZ_AT_CRUISE: {
+    label: 'Engine firing frequency at cruise',
+    value: 70, unit: 'Hz', low: 45, high: 110,
+    source: S.design, confidence: 'settled',
+    note: 'Arithmetic, not a measurement: a four-cylinder four-stroke at about 2,100 rpm fires 4,200 times a minute, which is 70 Hz. The low half of what a stream of traffic sounds like.',
+  },
+  WORN_SURFACE_NOISE_PENALTY_DBA: {
+    label: 'Extra noise from a ravelled surface',
+    value: 2.5, unit: 'dBA', low: 1, high: 5,
+    source: S.fhwaTnm, confidence: 'contextual',
+    note: 'Surface texture is worth a few decibels either way: a fresh quiet surface takes some off, a ravelled one puts it back. The same deferred resurfacing that shakes the car also makes the street louder.',
+  },
+  CAR_CABIN_ATTENUATION_DBA: {
+    label: 'Reduction of outside noise inside a closed car',
+    value: 24, unit: 'dBA', low: 18, high: 30,
+    source: S.design, confidence: 'contextual',
+    note: 'A game design parameter, chosen at the middle of the range usually quoted for a passenger car with the windows up. It is the whole reason the corridor sounds like one thing from the seat and another from the pavement, so it is stated rather than assumed.',
+  },
+  LEAF_RUSTLE_DBA: {
+    label: 'Wind in a full canopy, at the kerb',
+    value: 42, unit: 'dBA', low: 30, high: 50,
+    source: S.design, confidence: 'contextual',
+    note: 'Quiet. Thirty-six decibels below the corridor at year zero, which is a two-hundred-and-fiftieth of the amplitude and correctly inaudible; on a street that has been calmed to the low sixties it is there. Rustling leaves are the textbook example of a level nobody can hear next to a road, and putting it in as a level rather than as a mix fader is what keeps it that way.',
+  },
+  BIRD_CALLS_PER_MIN_AT_FULL_CANOPY: {
+    label: 'Bird calls a minute under a full canopy on a quiet street',
+    value: 14, unit: 'calls per minute', low: 4, high: 40,
+    source: S.design, confidence: 'contextual',
+    note: 'A design parameter for how alive a street sounds. The relationship behind it is not: bird abundance falls with traffic noise, so the calls are suppressed by the level as well as raised by the canopy.',
+  },
+  PASS_ENVELOPE_ENERGY_FACTOR: {
+    label: 'Energy in one pass-by envelope, as a share of peak squared times duration',
+    value: 0.52, unit: 'fraction', low: 0.45, high: 0.58,
+    source: S.design, confidence: 'settled',
+    note: 'Measured by rendering the envelope the synthesiser actually draws and integrating it, not estimated. It is what lets a pass be sized so the events and the continuous bed together come to exactly the equivalent level the noise model computed.',
+  },
+  BIRD_SILENCE_DBA: {
+    label: 'Level at which birdsong stops being part of the street',
+    value: 72, unit: 'dBA', low: 65, high: 78,
+    source: S.design, confidence: 'contextual',
+    note: 'Partly masking and partly that birds are not there. Set so the corridor at year zero has none and a calmed one has some.',
+  },
+})
+
 export const CONSTANT_REGISTRY = mergeRegistries(
   geometry.registry,
   traffic.registry,
@@ -1470,6 +1552,7 @@ export const CONSTANT_REGISTRY = mergeRegistries(
   liability.registry,
   safety.registry,
   environment.registry,
+  audio.registry,
   modeChoice.registry,
   property.registry,
   politics.registry,
@@ -1483,6 +1566,7 @@ export const C = {
   ...liability.values,
   ...safety.values,
   ...environment.values,
+  ...audio.values,
   ...modeChoice.values,
   ...property.values,
   ...politics.values,
@@ -1498,6 +1582,7 @@ export const CONSTANT_GROUPS: readonly { title: string; blurb: string; keys: str
   { title: 'Infrastructure liability', blurb: 'What that acre costs the city each year. Liability follows area, revenue follows value.', keys: Object.keys(liability.values) },
   { title: 'Safety', blurb: 'Crash frequency, crash severity, and who gets hurt.', keys: Object.keys(safety.values) },
   { title: 'Noise, air and heat', blurb: 'What the corridor does to the people standing next to it.', keys: Object.keys(environment.values) },
+  { title: 'What the corridor sounds like', blurb: 'The noise model says how loud. These say what the loudness is made of.', keys: Object.keys(audio.values) },
   { title: 'Mode choice', blurb: 'How people decide to travel. Never set directly by the player.', keys: Object.keys(modeChoice.values) },
   { title: 'Retail and housing', blurb: 'Whether shops survive and what it costs to live here.', keys: Object.keys(property.values) },
   { title: 'Politics', blurb: 'Game design parameters, tuned by play.', keys: Object.keys(politics.values) },

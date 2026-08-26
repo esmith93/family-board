@@ -7,9 +7,9 @@ Every number the simulation uses appears below with its value, its units, an hon
 range, and where it came from. The in-game **"Why this number?"** panel reads the same
 registry, so a constant cannot enter the model without declaring its source.
 
-- **182** constants in the model
-- **97** carry a citation to published work
-- **85** are game design parameters, marked as such rather than dressed up with a citation they do not have
+- **193** constants in the model
+- **100** carry a citation to published work
+- **93** are game design parameters, marked as such rather than dressed up with a citation they do not have
 - **24** sit on literature where researchers actively disagree
 
 ## How to read the confidence column
@@ -356,6 +356,36 @@ What the corridor does to the people standing next to it.
 - **NO2 elevation at the kerb relative to background** (`NO2_NEAR_ROAD_ELEVATION`): NO2 shows a real near-road gradient, unlike PM2.5: roughly a fifth of it is gone by 300 m and the gradient runs to 500 m.
 - **Heavy vehicle share of corridor traffic** (`TRUCK_SHARE`): Small in count, large in noise.
 - **Cars per heavy vehicle, acoustically** (`TRUCK_NOISE_EQUIVALENCE`): Why a corridor on a lorry route sounds louder than its volume suggests.
+
+## What the corridor sounds like
+
+The noise model says how loud. These say what the loudness is made of.
+
+| Constant | Value | Units | Range | Confidence | Source |
+| --- | ---: | --- | ---: | --- | --- |
+| `PEAK_HOUR_SHARE_OF_AADT`<br>Share of a day's traffic that arrives in the peak hour | 0.095 | fraction | 0.08–0.11 | Varies by context | [FHWA, "Simplified Highway Capacity Calculation Method for the Highway Performance Monitoring System" (FHWA-PL-18-003)](https://www.fhwa.dot.gov/policyinformation/pubs/pl18003/hpms_cap.pdf) (2018) |
+| `AUDIO_FULL_SCALE_DBA`<br>Sound level that maps to digital full scale | 88 | dBA | 84–94 | Settled | _Design parameter_ |
+| `TYRE_NOISE_PEAK_HZ`<br>Centre frequency of tyre-pavement noise | 1,000 | Hz | 800–1,250 | Settled | [Sandberg & Ejsmont, "The multi-coincidence peak around 1000 Hz in tyre/road noise spectra", EuroNoise](https://informex.info/Multi-coincidence_peak_-_EuroNoise_ppr.pdf) (2003) |
+| `TYRE_PEAK_HZ_PER_SPEED_DOUBLING`<br>Shift in the tyre noise peak per doubling of speed | 1.19 | ratio | 1–1.4 | Varies by context | _Design parameter_ |
+| `ENGINE_FIRING_HZ_AT_CRUISE`<br>Engine firing frequency at cruise | 70 | Hz | 45–110 | Settled | _Design parameter_ |
+| `WORN_SURFACE_NOISE_PENALTY_DBA`<br>Extra noise from a ravelled surface | 2.5 | dBA | 1–5 | Varies by context | [FHWA, Traffic Noise Model Technical Manual - reference energy mean emission levels](https://www.fhwa.dot.gov/environment/noise/traffic_noise_model/old_versions/tnm_version_10/tech_manual/tnm00.cfm) (1998) |
+| `CAR_CABIN_ATTENUATION_DBA`<br>Reduction of outside noise inside a closed car | 24 | dBA | 18–30 | Varies by context | _Design parameter_ |
+| `LEAF_RUSTLE_DBA`<br>Wind in a full canopy, at the kerb | 42 | dBA | 30–50 | Varies by context | _Design parameter_ |
+| `BIRD_CALLS_PER_MIN_AT_FULL_CANOPY`<br>Bird calls a minute under a full canopy on a quiet street | 14 | calls per minute | 4–40 | Varies by context | _Design parameter_ |
+| `PASS_ENVELOPE_ENERGY_FACTOR`<br>Energy in one pass-by envelope, as a share of peak squared times duration | 0.52 | fraction | 0.45–0.58 | Settled | _Design parameter_ |
+| `BIRD_SILENCE_DBA`<br>Level at which birdsong stops being part of the street | 72 | dBA | 65–78 | Varies by context | _Design parameter_ |
+
+- **Share of a day's traffic that arrives in the peak hour** (`PEAK_HOUR_SHARE_OF_AADT`): The K-factor. Urban arterials run eight to ten per cent; rural roads run higher because their days are peakier. It converts the one number everybody quotes about a road into the one that decides whether you can cross it.
+- **Sound level that maps to digital full scale** (`AUDIO_FULL_SCALE_DBA`): The anchor that makes the mix a real decibel scale instead of a slider. Every level in the game is 10^((dBA-88)/20), so a corridor the model says is 16 dB quieter is a quarter as loud, and the player hears the model rather than a designer.
+- **Centre frequency of tyre-pavement noise** (`TYRE_NOISE_PEAK_HZ`): Tyre/road noise spectra peak around 1 kHz for passenger cars, from the coincidence of tread pitch, pipe and Helmholtz resonance, the horn effect and the road texture spectrum. Heavy vehicles sit lower, 500 to 1000 Hz.
+- **Shift in the tyre noise peak per doubling of speed** (`TYRE_PEAK_HZ_PER_SPEED_DOUBLING`): The peak itself is set by resonances and moves little with speed; what changes is the balance of the spectrum above and below it. Modelled here as a modest upward shift because that is what the ear reports - a road brightens as it speeds up.
+- **Engine firing frequency at cruise** (`ENGINE_FIRING_HZ_AT_CRUISE`): Arithmetic, not a measurement: a four-cylinder four-stroke at about 2,100 rpm fires 4,200 times a minute, which is 70 Hz. The low half of what a stream of traffic sounds like.
+- **Extra noise from a ravelled surface** (`WORN_SURFACE_NOISE_PENALTY_DBA`): Surface texture is worth a few decibels either way: a fresh quiet surface takes some off, a ravelled one puts it back. The same deferred resurfacing that shakes the car also makes the street louder.
+- **Reduction of outside noise inside a closed car** (`CAR_CABIN_ATTENUATION_DBA`): A game design parameter, chosen at the middle of the range usually quoted for a passenger car with the windows up. It is the whole reason the corridor sounds like one thing from the seat and another from the pavement, so it is stated rather than assumed.
+- **Wind in a full canopy, at the kerb** (`LEAF_RUSTLE_DBA`): Quiet. Thirty-six decibels below the corridor at year zero, which is a two-hundred-and-fiftieth of the amplitude and correctly inaudible; on a street that has been calmed to the low sixties it is there. Rustling leaves are the textbook example of a level nobody can hear next to a road, and putting it in as a level rather than as a mix fader is what keeps it that way.
+- **Bird calls a minute under a full canopy on a quiet street** (`BIRD_CALLS_PER_MIN_AT_FULL_CANOPY`): A design parameter for how alive a street sounds. The relationship behind it is not: bird abundance falls with traffic noise, so the calls are suppressed by the level as well as raised by the canopy.
+- **Energy in one pass-by envelope, as a share of peak squared times duration** (`PASS_ENVELOPE_ENERGY_FACTOR`): Measured by rendering the envelope the synthesiser actually draws and integrating it, not estimated. It is what lets a pass be sized so the events and the continuous bed together come to exactly the equivalent level the noise model computed.
+- **Level at which birdsong stops being part of the street** (`BIRD_SILENCE_DBA`): Partly masking and partly that birds are not there. Set so the corridor at year zero has none and a calmed one has some.
 
 ## Mode choice
 

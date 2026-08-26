@@ -21,7 +21,10 @@ export {
   curbCutsPerMile, localTripGeneration, seversCorridor, effectiveGreenRatio,
   signalDelaySeconds, SIGNALS_ON_CORRIDOR,
 } from './traffic'
-export { stepEnvironment, trafficNoiseDba, streetHostility, levelOfTrafficStress, canopyFraction, imperviousFraction } from './environment'
+export {
+  stepEnvironment, trafficNoiseDba, streetHostility, levelOfTrafficStress, canopyFraction,
+  imperviousFraction, distanceToNearestLaneFt,
+} from './environment'
 export { computeTravel, makeTravelContext, travelMinutes, clockMinutes, modeProbabilities, deriveDestinations, TRIP_PURPOSE_WEIGHTS } from './travel'
 export type { TravelContext, TravelResult } from './travel'
 export { stepSafety, pedestrianFatalityRisk, severitySplit, crashModificationFactor } from './safety'

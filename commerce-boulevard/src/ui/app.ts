@@ -20,6 +20,7 @@ import { initWhy, showWhy } from './why'
 import { hideModal, runOpening, showEnding } from './opening'
 import { showFrontPage } from './newspaper'
 import { FirstPerson } from './camera'
+import { Sound } from '../audio/sound'
 import { observe } from '../paper/observation'
 import { circumstanceOf, newMemory, type PaperMemory } from '../paper/residents'
 import { composeFrontPage } from '../paper/paper'
@@ -76,7 +77,8 @@ export class Game {
   private skipped = false
   private memory: PaperMemory
   private sceneId = 0
-  private readonly firstPerson = new FirstPerson()
+  private readonly sound = new Sound()
+  private readonly firstPerson = new FirstPerson(this.sound)
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.state = newGame(seedForToday())
@@ -171,6 +173,7 @@ export class Game {
     await this.wait(SEASON_MS)
 
     this.showSeason(null)
+    this.sound.atDesk(this.state)
     this.renderer.setSeason('summer')
     this.renderer.setLight('day')
     document.body.classList.remove('advancing')
@@ -198,12 +201,15 @@ export class Game {
     const page = composeFrontPage(
       observation, this.memory, (r) => circumstanceOf(r, frozen), this.state.seed,
     )
+    this.sound.hush(true)
     await showFrontPage(page, {
       scene: buildScene(this.state),
       sceneId: this.sceneId,
       season: 'summer',
       light: 'day',
     })
+    this.sound.atDesk(this.state)
+    this.sound.hush(false)
   }
 
   private showSeason(caption: string | null): void {
@@ -276,7 +282,10 @@ export class Game {
         + '<br><b>esc</b> back to the office'
       : '<b>left / right</b> walk &nbsp; <b>up</b> cross'
         + '<br><b>esc</b> back to the office'
-    this.firstPerson.open(this.state, mode, () => this.renderAll())
+    this.firstPerson.open(this.state, mode, () => {
+      this.sound.atDesk(this.state)
+      this.renderAll()
+    })
   }
 
   // --- Rendering the chrome ------------------------------------------------
@@ -512,12 +521,23 @@ export class Game {
       ? 'The ledger is open to you now.'
       : s.year === 0 ? 'Pick as much or as little as you like, then advance the year.'
         : `${percent(s.modeShare.walk, 1)} of trips on foot &middot; ${Math.round(s.traffic.peakSpeedMph)} mph at the peak &middot; ${Math.round(s.environment.sidewalkNoiseDba)} dBA at the kerb`
-    el('hint').innerHTML = `<b>drag</b> pan &middot; <b>wheel</b> zoom &middot; <b>1&ndash;4</b> light &middot; <b>Q W E T</b> season &middot; <b>V</b> drive &middot; <b>B</b> walk &nbsp;&nbsp; ${hint}`
+    el('hint').innerHTML = `<b>drag</b> pan &middot; <b>wheel</b> zoom &middot; <b>1&ndash;4</b> light &middot; `
+      + `<b>Q W E T</b> season &middot; <b>V</b> drive &middot; <b>B</b> walk &middot; `
+      + `<b>M</b> sound ${this.sound.isOn ? 'on' : 'off'} &nbsp;&nbsp; ${hint}`
   }
 
   // --- Input ---------------------------------------------------------------
 
   private bindInput(): void {
+    // A browser will not make a sound until somebody has clicked something.
+    // Any gesture counts, so every gesture is one.
+    const wake = (): void => {
+      this.sound.unlock()
+      if (!this.firstPerson.isOpen) this.sound.atDesk(this.state)
+    }
+    window.addEventListener('pointerdown', wake, { passive: true })
+    window.addEventListener('keydown', wake, { passive: true })
+
     let dragging = false
     let lastX = 0
     let lastY = 0
@@ -555,6 +575,7 @@ export class Game {
       if (key >= '1' && key <= '4') { this.renderer.setLight(LIGHTS[Number(key) - 1]!); return }
       if (key === 'v') { this.getOut('drive'); return }
       if (key === 'b') { this.getOut('walk'); return }
+      if (key === 'm') { this.sound.toggle(); this.renderHint(); return }
       if (SEASONS[key]) { this.renderer.setSeason(SEASONS[key]!); this.refreshScene() }
     })
     el('godrive').addEventListener('click', () => this.getOut('drive'))

@@ -23,7 +23,7 @@ argument exists before the pixels do.
 | 3 | Instruments UI + two-currency economy | **done** |
 | 4 | Year advance + newspaper generator | **done** |
 | 5 | Raycaster (drive) and side-scroll (walk) cameras | **done** |
-| 6 | Web Audio synthesis | not started |
+| 6 | Web Audio synthesis | **done** |
 | 7 | Ledger View reveal + year-30 scoring | not started |
 | 8 | Onboarding, tuning, polish | not started |
 
@@ -32,16 +32,17 @@ argument exists before the pixels do.
 ```bash
 npm install
 npm run dev       # the isometric view, at localhost:5173
-npm test          # 332 tests across the model, the renderers, the economy and the paper
+npm test          # 384 tests across the model, the renderers, the economy, the paper and the sound
 npm run model     # regenerate MODEL.md from the constant registry
 npm run sim       # play four scripted strategies and print thirty years of each
 npm run sweep     # compare strategies across thirteen generated corridors
 npm run paper     # read thirty years of the Fairview Ledger at the terminal
+npm run audio     # render the synthesiser offline and check it against the model
 ```
 
 In the view: **drag** to pan, **wheel** to zoom, **space** to advance a year,
 **1–4** for day / dusk / night / overcast, **Q W E T** for the seasons, **V** to
-drive the corridor and **B** to walk it.
+drive the corridor, **B** to walk it and **M** for sound.
 Instruments are in the dock at the bottom; the caret at its right collapses it.
 
 Pin a corridor with `?seed=fairview` if you want the same one twice.
@@ -77,6 +78,11 @@ src/ui/             The chrome: instruments, the two currencies, the cold open.
   camera.ts         Getting into the car, and getting out and walking.
   why.ts            "Why this number?" - provenance for any figure on screen.
   format.ts         How money and durations are written.
+src/audio/          What the corridor sounds like. No audio assets anywhere.
+  mix.ts            Sim state in, decibels and hertz out. No Web Audio in it.
+  synth.ts          Filtered noise and two oscillators, and nothing else.
+  sound.ts          The one thing that owns an AudioContext.
+  stub-context.ts   A recording stand-in, so the graph can be tested headless.
 src/render/         The three views. No image assets anywhere.
   palette.ts        Thirty-two colours, and the light and season lookup tables.
   bitmap.ts         A rasteriser that writes palette INDICES, not colours.
@@ -221,6 +227,42 @@ between needing two unlikely things at once and needing them one at a time.
 Neither view says anything. There is a speedometer, a trip clock and an
 odometer, because that is what a car has, and on foot a clock and a distance.
 None of them is an opinion.
+
+## What it sounds like
+
+No audio files, for the same reason there are no image files. Everything the
+player hears is filtered noise and two oscillators, and every level in it is
+one exponential away from a decibel the noise model computed:
+`10^((dBA − 88)/20)`. Which means the sound cannot drift from the simulation
+without a test noticing.
+
+The near lane is emitted as discrete vehicles going past and the rest of the
+road as a continuous bed, sized so the two together come to exactly the
+equivalent level the model says the corridor produces. That is not a stylistic
+choice, it is what an equivalent level is — the sum of the things too far away
+or too close together to pick apart — and it is where the difference between a
+street and a road turns up. On six lanes the near lane is an event seven per
+cent of the time and the other ninety-three is a wash. On two lanes it is
+forty per cent, and you hear cars.
+
+Three things fall out of that without anybody deciding them:
+
+- **A corridor the model says is 8.6 dB quieter renders 9.8 dB quieter.**
+  Verified by rendering the real synthesiser offline in a browser for seventy
+  seconds and measuring it; `npm run audio` re-runs it. The 1.2 dB residual is
+  the tyre-to-engine balance shifting as the road slows, which is a real
+  spectral difference and not an error.
+- **Slowing a road does three times as much as emptying it**, and it is audible
+  rather than merely true, because 9 dB per doubling of speed against 3 dB per
+  doubling of volume is a factor of three in the exponent.
+- **Wind in the leaves is inaudible next to the corridor at year zero.** It is
+  in the mix at 42 dBA against 78, which is a two-hundred-and-fiftieth of the
+  amplitude. Planting trees does not make the road quieter, and the sound says
+  so by not pretending otherwise. It appears when the road stops shouting.
+
+A car is a box that takes about twenty-four decibels off everything outside it
+and replaces them with the surface under the wheels. Which is why a corridor
+can be unbearable to stand beside and perfectly pleasant to drive.
 
 ## The paper
 

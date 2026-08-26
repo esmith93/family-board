@@ -23,7 +23,8 @@ import {
 import { corridorModel, walkToCrossing, type CorridorModel, type Side } from './corridor'
 import { P } from './palette'
 import {
-  C, effectiveGreenRatio, levelOfTrafficStress, operatingSpeedMph, segmentOf, type SimState,
+  C, distanceToNearestLaneFt, effectiveGreenRatio, levelOfTrafficStress, operatingSpeedMph,
+  segmentOf, type SimState,
 } from '../sim/index'
 
 const MPH_TO_FPS = 5280 / 3600
@@ -75,6 +76,10 @@ export interface WalkWorld {
   noiseDba: number
   canopy: number
   year: number
+  /** Years of deferred resurfacing, which a street can be heard to have. */
+  pavementAgeYears: number
+  /** Feet from where you stand to the middle of the nearest running lane. */
+  nearestLaneFt: number
   /** The vehicles-per-second stream, for gap acceptance. */
   flowPerLaneSec: number
   laneCount: number
@@ -90,7 +95,7 @@ export function buildWalkWorld(state: SimState): WalkWorld {
 
   // Peak-hour flow, split evenly over the running lanes. Ten per cent of the
   // day's traffic in the peak hour is the usual rule for an arterial.
-  const peakHour = state.traffic.aadt * 0.1
+  const peakHour = state.traffic.aadt * C.PEAK_HOUR_SHARE_OF_AADT
   return {
     plan: buildPlan(model),
     model,
@@ -102,6 +107,8 @@ export function buildWalkWorld(state: SimState): WalkWorld {
     noiseDba: state.environment.sidewalkNoiseDba,
     canopy: state.environment.canopyFraction,
     year: state.year,
+    pavementAgeYears: street.pavementAgeYears,
+    nearestLaneFt: distanceToNearestLaneFt(street),
     flowPerLaneSec: lanes > 0 ? peakHour / lanes / 3600 : 0,
     laneCount: Math.max(1, lanes),
     hasRefuge: street.median === 'raised' || street.median === 'landscaped',
