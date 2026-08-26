@@ -49,6 +49,12 @@ export const PALETTE_INDEX = {
   signRed: 30,
   signBlue: 31,
   awningOrange: 32,
+  // The sky. The isometric view paints it as a canvas gradient behind the
+  // world, but a first-person camera has to put it IN the frame buffer, and
+  // the frame buffer holds palette indices. So the sky gets three of them.
+  skyHigh: 33,
+  skyMid: 34,
+  skyLow: 35,
 } as const
 
 export type PaletteName = keyof typeof PALETTE_INDEX
@@ -121,6 +127,11 @@ const DAY: Readonly<Record<PaletteName, Rgb>> = Object.freeze({
   signRed: hex('#c04539'),
   signBlue: hex('#3e6ba3'),
   awningOrange: hex('#c56f3d'),
+
+  // Daylight values, kept for completeness. Every light overrides these.
+  skyHigh: hex('#7fb4cf'),
+  skyMid: hex('#a7cbdf'),
+  skyLow: hex('#cfe3e4'),
 })
 
 export const PALETTE_NAMES = Object.keys(PALETTE_INDEX) as PaletteName[]
@@ -194,7 +205,15 @@ export function makePalette(light: LightName, season: SeasonName): PaletteVarian
     const base = override ? hex(override) : DAY[name]
 
     let out: Rgb
-    if (name === 'glassLit') {
+    if (name === 'skyHigh' || name === 'skyMid' || name === 'skyLow') {
+      // The sky is not a lit surface, it is the light. Grading it like a brick
+      // would give a night sky the colour of a brick at night.
+      const top = hex(SKY[light].top)
+      const bottom = hex(SKY[light].bottom)
+      out = name === 'skyHigh' ? top
+        : name === 'skyLow' ? bottom
+          : { r: (top.r + bottom.r) / 2, g: (top.g + bottom.g) / 2, b: (top.b + bottom.b) / 2 }
+    } else if (name === 'glassLit') {
       // A lit window at night is brighter than in daylight, not dimmer.
       out = light === 'night' ? { r: 255, g: 226, b: 150 }
         : light === 'dusk' ? { r: 248, g: 216, b: 140 }

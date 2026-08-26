@@ -15,6 +15,9 @@ import type {
 } from './types'
 
 const SEGMENT_LENGTH_FT = C.CORRIDOR_LENGTH_FT / C.CORRIDOR_SEGMENTS
+
+/** The front setback Fairview's code has required since it was written. */
+const INITIAL_FRONT_SETBACK_FT = 40
 const FRONT_ROW_DEPTH_FT = 250
 const BACK_ROW_DEPTH_FT = 150
 
@@ -140,6 +143,10 @@ function makeParcel(
     yearBuilt,
     condition: Math.round(condition * 1000) / 1000,
     curbCuts: depth === 0 ? profile.curbCutsPerParcel : 0,
+    // Everything on the corridor was put up under the forty-foot minimum that
+    // is still on the books in year zero, so even the handful of shopfronts
+    // stand back from the pavement they were meant to be on.
+    frontSetbackFt: Math.max(INITIAL_FRONT_SETBACK_FT, profile.entranceSetbackFt),
     canopy: Math.max(0, Math.min(1, profile.baseCanopy + rng.normal() * 0.04)),
   }
 }
@@ -219,6 +226,7 @@ function convertTo(parcel: Parcel, use: LandUse, year: number): void {
   parcel.residents = Math.round(parcel.dwellings * 2.35)
   parcel.curbCuts = parcel.depth === 0 ? profile.curbCutsPerParcel : 0
   parcel.canopy = profile.baseCanopy
+  parcel.frontSetbackFt = Math.max(INITIAL_FRONT_SETBACK_FT, profile.entranceSetbackFt)
   parcel.landValue = Math.round(profile.valuePerAcre * parcel.acres * profile.landValueShare)
   parcel.improvementValue = Math.round(profile.valuePerAcre * parcel.acres * (1 - profile.landValueShare))
   parcel.yearBuilt = Math.min(parcel.yearBuilt, year)

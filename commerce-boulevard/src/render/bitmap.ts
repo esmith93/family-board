@@ -269,6 +269,63 @@ export function applyPalette(bmp: Bitmap, lut: Uint8ClampedArray): Uint8ClampedA
   return out
 }
 
+/**
+ * Is this machine little-endian?
+ *
+ * Packing four bytes into one 32-bit write is the single cheapest way to turn
+ * a palette-indexed buffer into RGBA, and it is the only part of the pipeline
+ * where byte order is visible. Probed once rather than assumed: everything
+ * this runs on is little-endian, and the one that is not should still get the
+ * right colours rather than the blue channel where the red goes.
+ */
+const LITTLE_ENDIAN = (() => {
+  const probe = new ArrayBuffer(4)
+  new Uint32Array(probe)[0] = 0x01020304
+  return new Uint8Array(probe)[0] === 0x04
+})()
+
+/**
+ * Pack a byte lookup table into 32-bit words, for the per-frame path.
+ *
+ * `applyPalette` writes four bytes per pixel, which is fine for a sprite that
+ * is painted once per palette variant and then cached for the session. A
+ * first-person camera repaints its entire frame buffer sixty times a second,
+ * and there the four writes measure about four and a half times the cost of
+ * one. Same table, packed differently.
+ */
+export function makeLut32(lut: Uint8ClampedArray): Uint32Array {
+  const count = Math.floor(lut.length / 4)
+  const out = new Uint32Array(count)
+  for (let i = 0; i < count; i++) {
+    const r = lut[i * 4]!
+    const g = lut[i * 4 + 1]!
+    const b = lut[i * 4 + 2]!
+    // The frame buffer of a camera is opaque everywhere: index 0 is a colour
+    // in that context, not a hole, and a transparent sky is not a sky.
+    const a = 255
+    out[i] = LITTLE_ENDIAN
+      ? ((a << 24) | (b << 16) | (g << 8) | r) >>> 0
+      : ((r << 24) | (g << 16) | (b << 8) | a) >>> 0
+  }
+  return out
+}
+
+/**
+ * Paint a whole indexed buffer through a packed table, one write per pixel.
+ *
+ * `out` is a Uint32 view over an ImageData's bytes. Nothing is skipped and
+ * nothing is left transparent, which is what makes this the frame path rather
+ * than the sprite path.
+ */
+export function paintIndexed(indices: Uint8Array, lut32: Uint32Array, out: Uint32Array): void {
+  const n = Math.min(indices.length, out.length)
+  const top = lut32.length - 1
+  for (let i = 0; i < n; i++) {
+    const index = indices[i]!
+    out[i] = lut32[index <= top ? index : 0]!
+  }
+}
+
 /** A tiny deterministic generator for sprite variation. */
 export function spriteRng(seed: number): () => number {
   let state = (seed | 0) >>> 0

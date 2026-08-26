@@ -386,7 +386,7 @@ export function stepRedevelopment(
     if (chance <= 0 || !rng.chance(chance)) continue
 
     const from = candidate.parcel.use
-    applyUse(candidate.parcel, candidate.use, state.year)
+    applyUse(candidate.parcel, candidate.use, state.year, state.zoning.frontSetbackFt)
     redeveloped.push({ parcelId: candidate.parcel.id, from, to: candidate.use })
     unitsLeft -= units
     retailLeft -= retail
@@ -397,7 +397,9 @@ export function stepRedevelopment(
 
 function clamp01(x: number): number { return Math.max(0, Math.min(1, x)) }
 
-export function applyUse(parcel: Parcel, use: LandUse, year: number): void {
+export function applyUse(
+  parcel: Parcel, use: LandUse, year: number, requiredSetbackFt = 0,
+): void {
   const profile = profileFor(use)
   parcel.use = use
   parcel.stories = profile.stories
@@ -407,6 +409,10 @@ export function applyUse(parcel: Parcel, use: LandUse, year: number): void {
   parcel.dwellings = Math.round(profile.dwellingsPerAcre * parcel.acres)
   parcel.residents = Math.round(parcel.dwellings * 2.35)
   parcel.curbCuts = parcel.depth === 0 ? profile.curbCutsPerParcel : 0
+  // A shopfront wants to be on the pavement and a big box wants to be behind
+  // its car park. The rule can stop the first from happening; it cannot make
+  // the second happen.
+  parcel.frontSetbackFt = Math.max(requiredSetbackFt, profile.entranceSetbackFt)
   parcel.canopy = profile.baseCanopy
   parcel.condition = 1
   parcel.yearBuilt = year

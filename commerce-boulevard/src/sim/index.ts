@@ -26,7 +26,7 @@ export { computeTravel, makeTravelContext, travelMinutes, clockMinutes, modeProb
 export type { TravelContext, TravelResult } from './travel'
 export { stepSafety, pedestrianFatalityRisk, severitySplit, crashModificationFactor } from './safety'
 export {
-  stepRetail, stepHousing, stepRedevelopment, stepAssessments, marketValue, computeAbsorption,
+  stepRetail, stepHousing, stepRedevelopment, stepAssessments, marketValue, computeAbsorption, applyUse,
   corridorJobs, corridorPopulation, residentialDensityPerAcre, intensityIndex, groceryViable,
 } from './economy'
 export {

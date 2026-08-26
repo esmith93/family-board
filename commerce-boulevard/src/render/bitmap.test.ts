@@ -1,10 +1,10 @@
 /** The rasteriser everything else is drawn with. */
 import { describe, expect, it } from 'vitest'
 import {
-  applyPalette, blit, bounds, ditherRect, getPx, isoDiamond, line, makeBitmap, polygon, px, rect,
-  speckle, spriteRng, swapIndex, usedIndices,
+  applyPalette, blit, bounds, ditherRect, getPx, isoDiamond, line, makeBitmap, makeLut32,
+  paintIndexed, polygon, px, rect, speckle, spriteRng, swapIndex, usedIndices,
 } from './bitmap'
-import { makePalette, PALETTE_INDEX, TRANSPARENT } from './palette'
+import { makePalette, PALETTE_INDEX, PALETTE_SIZE, TRANSPARENT } from './palette'
 
 describe('primitives', () => {
   it('clips to the bitmap instead of throwing', () => {
@@ -152,5 +152,55 @@ describe('sprite randomness', () => {
     const draw = (r: () => number): number[] => Array.from({ length: 20 }, () => r())
     expect(draw(a)).toEqual(draw(b))
     expect(draw(spriteRng(7))).not.toEqual(draw(c))
+  })
+})
+
+describe('the per-frame palette path', () => {
+  it('agrees with the per-sprite path on every colour', () => {
+    // Two implementations of the same idea, one cheap and one clear. If they
+    // ever disagree, the cheap one is wrong.
+    const variant = makePalette('day', 'summer')
+    const lut32 = makeLut32(variant.lut)
+    const indices = new Uint8Array(PALETTE_SIZE + 1)
+    for (let i = 0; i <= PALETTE_SIZE; i++) indices[i] = i
+    const out = new Uint32Array(indices.length)
+    paintIndexed(indices, lut32, out)
+
+    const bytes = new Uint8Array(out.buffer)
+    for (let i = 1; i <= PALETTE_SIZE; i++) {
+      expect(bytes[i * 4], `index ${i} red`).toBe(variant.lut[i * 4])
+      expect(bytes[i * 4 + 1], `index ${i} green`).toBe(variant.lut[i * 4 + 1])
+      expect(bytes[i * 4 + 2], `index ${i} blue`).toBe(variant.lut[i * 4 + 2])
+      expect(bytes[i * 4 + 3], `index ${i} alpha`).toBe(255)
+    }
+  })
+
+  it('leaves no transparent pixels, because a camera frame has no holes', () => {
+    const lut32 = makeLut32(makePalette('night', 'winter').lut)
+    const out = new Uint32Array(64)
+    paintIndexed(new Uint8Array(64), lut32, out)
+    const bytes = new Uint8Array(out.buffer)
+    for (let i = 3; i < bytes.length; i += 4) expect(bytes[i]).toBe(255)
+  })
+
+  it('clamps an index past the end of the table instead of reading rubbish', () => {
+    const lut32 = makeLut32(makePalette('day', 'summer').lut)
+    const out = new Uint32Array(4)
+    paintIndexed(Uint8Array.from([0, 200, 255, 1]), lut32, out)
+    expect(out[1]).toBe(out[0])
+    expect(out[2]).toBe(out[0])
+    expect(out[3]).not.toBe(out[0])
+  })
+
+  it('swaps the whole frame when the light changes, without touching the indices', () => {
+    const indices = new Uint8Array(256)
+    for (let i = 0; i < indices.length; i++) indices[i] = 1 + (i % PALETTE_SIZE)
+    const before = new Uint32Array(indices.length)
+    const after = new Uint32Array(indices.length)
+    paintIndexed(indices, makeLut32(makePalette('day', 'summer').lut), before)
+    paintIndexed(indices, makeLut32(makePalette('night', 'summer').lut), after)
+    expect(Array.from(before)).not.toEqual(Array.from(after))
+    // The indices are the drawing. They did not move.
+    expect(indices[7]).toBe(1 + (7 % PALETTE_SIZE))
   })
 })

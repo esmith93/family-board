@@ -11,17 +11,17 @@ Nobody will tell you what to do about it.
 
 ---
 
-## Status: Phase 1 complete — simulation core only
+## Status: phases 1 to 4 complete
 
-There is no renderer yet. This is deliberate: the build order puts the simulation
-first, headless and tested, so that the argument exists before the pixels do.
+The build order puts the simulation first, headless and tested, so that the
+argument exists before the pixels do.
 
 | Phase | | |
 | --- | --- | --- |
 | 1 | Simulation core, `MODEL.md`, tests | **done** |
 | 2 | Isometric renderer + procedural sprite factory | **done** |
 | 3 | Instruments UI + two-currency economy | **done** |
-| 4 | Year advance + newspaper generator | not started |
+| 4 | Year advance + newspaper generator | **done** |
 | 5 | Raycaster (drive) and side-scroll (walk) cameras | not started |
 | 6 | Web Audio synthesis | not started |
 | 7 | Ledger View reveal + year-30 scoring | not started |
@@ -32,10 +32,11 @@ first, headless and tested, so that the argument exists before the pixels do.
 ```bash
 npm install
 npm run dev       # the isometric view, at localhost:5173
-npm test          # 222 tests across the model, the renderer and the economy
+npm test          # 259 tests across the model, the renderer, the economy and the paper
 npm run model     # regenerate MODEL.md from the constant registry
 npm run sim       # play four scripted strategies and print thirty years of each
 npm run sweep     # compare strategies across thirteen generated corridors
+npm run paper     # read thirty years of the Fairview Ledger at the terminal
 ```
 
 In the view: **drag** to pan, **wheel** to zoom, **space** to advance a year,

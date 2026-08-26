@@ -93,6 +93,16 @@ export interface Parcel {
   condition: number
   /** Curb cuts onto the boulevard. Drives turning conflicts. */
   curbCuts: number
+  /**
+   * Feet from the pavement to the front of the building AS BUILT.
+   *
+   * Not the same as the use's preference and not the same as today's rule. A
+   * building put up under a forty-foot minimum stands forty feet back for the
+   * rest of its life, whatever the council votes afterwards; the rule only
+   * reaches the next thing built on the site. Which is why changing it in year
+   * two shows up in year fourteen and not before.
+   */
+  frontSetbackFt: number
   /** Tree canopy shading this parcel, 0..1. */
   canopy: number
 }

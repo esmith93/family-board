@@ -11,6 +11,7 @@
 import { C } from '../sim/constants'
 import { profileFor } from '../sim/landuse'
 import { crossingDistanceFt } from '../sim/traffic'
+import { crossingsOf, junctionsOf, roadBands } from './corridor'
 import { makeRng } from '../sim/rng'
 import type { Parcel, SimState, StreetState } from '../sim/types'
 import { TILE_FT } from './iso'
@@ -86,47 +87,6 @@ export interface Scene {
 const FRONT_ROW_DEPTH_FT = 250
 const BACK_ROW_DEPTH_FT = 150
 
-interface Band { role: RoadRole; feet: number }
-
-/**
- * The roadway cross-section, north kerb to south kerb, in feet.
- *
- * Built from the street state rather than from a fixed template, so every
- * instrument the player touches is visible in the picture: a lane removed is a
- * band removed, a protected bike lane is a green band that was not there
- * before.
- */
-export function roadBands(street: StreetState): Band[] {
-  const bands: Band[] = []
-  const lane = street.laneWidthFt
-
-  const parkingFeet = street.onStreetParking === 'none' ? 0 : 8
-  const bikeFeet = street.bikeFacility === 'protected' ? 7
-    : street.bikeFacility === 'buffered' ? 6
-      : street.bikeFacility === 'painted' ? 5 : 0
-  const bikeRole: RoadRole = street.bikeFacility === 'protected' ? 'bike_protected' : 'bike_painted'
-
-  const side = (inbound: boolean): Band[] => {
-    const out: Band[] = []
-    if (parkingFeet > 0) out.push({ role: 'parking_bay', feet: parkingFeet })
-    if (bikeFeet > 0) out.push({ role: bikeRole, feet: bikeFeet })
-    if (street.busLane) out.push({ role: 'bus_lane', feet: lane })
-    for (let i = 0; i < street.throughLanesPerDirection; i++) {
-      out.push({ role: i === street.throughLanesPerDirection - 1 ? 'lane' : 'lane_divider', feet: lane })
-    }
-    return inbound ? out : out.reverse()
-  }
-
-  bands.push(...side(true))
-  if (street.median === 'twltl') bands.push({ role: 'turn_lane', feet: lane })
-  else if (street.median === 'raised') bands.push({ role: 'median_raised', feet: 8 })
-  else if (street.median === 'landscaped') bands.push({ role: 'median_planted', feet: 10 })
-  else bands.push({ role: 'centre_double', feet: 0.1 })
-  bands.push(...side(false))
-
-  return bands
-}
-
 interface Layout {
   gridW: number
   gridH: number
@@ -143,6 +103,8 @@ interface Layout {
 function tilesFor(feet: number): number {
   return Math.max(1, Math.round(feet / TILE_FT))
 }
+
+export { roadBands }
 
 export function layoutFor(street: StreetState): Layout {
   const gridW = Math.ceil(C.CORRIDOR_LENGTH_FT / TILE_FT)
@@ -204,9 +166,15 @@ function parcelBox(parcel: Parcel, layout: Layout): { x0: number; x1: number; y0
   return { x0, x1, y0: range[0], y1: range[1] }
 }
 
-/** How far this parcel's building sits back from the pavement, in tiles. */
+/**
+ * How far this parcel's building sits back from the pavement, in tiles.
+ *
+ * From the parcel, not from its use: two strip malls put up thirty years apart
+ * under different codes stand in different places, and the whole point of
+ * changing a setback rule is that you can see where it did and did not reach.
+ */
 function setbackTiles(parcel: Parcel): number {
-  return Math.max(0, Math.round(profileFor(parcel.use).entranceSetbackFt / TILE_FT))
+  return Math.max(0, Math.round(parcel.frontSetbackFt / TILE_FT))
 }
 
 export function buildScene(state: SimState): Scene {
@@ -221,10 +189,11 @@ export function buildScene(state: SimState): Scene {
   }
 
   // --- Roadway ---
-  const crossingEvery = Math.max(6, Math.round(state.street.crossingSpacingFt / TILE_FT))
-  const signalEvery = Math.round(layout.gridW / 6)
+  // Where it is legal to cross, from the one place that decides it.
+  const crossingTiles = new Set(
+    crossingsOf(state.street).map((c) => Math.round(c.stationFt / TILE_FT)))
   for (let gx = 0; gx < layout.gridW; gx++) {
-    const atCrossing = gx % crossingEvery === 0
+    const atCrossing = crossingTiles.has(gx)
     for (const row of layout.roadRows) {
       const role: RoadRole = atCrossing && row.role !== 'median_raised' && row.role !== 'median_planted'
         ? 'crosswalk' : row.role
@@ -361,9 +330,10 @@ export function buildScene(state: SimState): Scene {
     props.push({ gx: gx + Math.floor(lightEvery / 2), gy: layout.southWalk[0], kind: lightKind, seed: gx + 7 })
   }
 
-  const activeSignals = 5 - state.street.roundabouts.length
-  for (let s = 0; s < activeSignals; s++) {
-    const gx = Math.round((s + 0.5) * signalEvery)
+  // Junctions, from the same place the driver's seat gets them.
+  for (const junction of junctionsOf(state.street)) {
+    if (junction.kind !== 'signal') continue
+    const gx = Math.round(junction.stationFt / TILE_FT)
     props.push({ gx, gy: layout.northWalk[1] - 1, kind: 'signal', seed: gx })
   }
 
