@@ -62,9 +62,16 @@ src/sim/            The simulation. Pure, headless, deterministic, no DOM.
   instruments.ts    What the player can do, and what it costs.
   glossary.ts       Vocabulary the player earns by causing the thing.
   step.ts           One year of Fairview.
+src/paper/          The Fairview Ledger. A character, not a narrator.
+  observation.ts    The only thing the paper is allowed to know.
+  residents.ts      Six regulars, matched to real households.
+  letters.ts        Fifty letters. None of them contains an idea.
+  stories.ts        Front-page copy, including a great deal of filler.
+  paper.ts          Which stories make the front, and when the desk turns.
 src/ui/             The chrome: instruments, the two currencies, the cold open.
   app.ts            Meters, tabs, cards, the commit rail, the year advance.
   opening.ts        The budget, the job, and the ninety-ten offer.
+  newspaper.ts      Setting the front page, and screening the photograph.
   why.ts            "Why this number?" - provenance for any figure on screen.
   format.ts         How money and durations are written.
 src/render/         The isometric view. No image assets anywhere.
@@ -76,6 +83,7 @@ src/render/         The isometric view. No image assets anywhere.
   cache.ts          Sprite drawn once; painted once per palette variant.
   scene.ts          SimState in, drawable world out.
   renderer.ts       Painter order, light pools, moving traffic.
+  photo.ts          The newsprint dot screen, for the paper's photograph.
 MODEL.md            Generated from constants.ts. Do not edit by hand.
 tools/              Scripts for playing the model from the command line.
 ```
@@ -168,6 +176,40 @@ These are enforced by tests, not by good intentions:
   card would tell the player what a roundabout is for. A test enforces this.
 - The reserved vocabulary is kept out of every string in `src/ui/`, scanned by
   a test that also checks it found text to scan.
+- The newspaper is held to all of it, and to more besides. Tests play three whole
+  runs under three different plans and read every word the Ledger printed: no
+  reserved vocabulary, no villains, no praise, no causal reasoning, and never a
+  year other than the one the issue is dated. That last rule is the important
+  one. A paper that can write "since the 2003 widening" has a memory, and if the
+  paper has a memory the player never has to build one.
+
+## The paper
+
+The Ledger is a weekly with a circulation of nine thousand and one reporter on
+the city beat. It reports what happened and it does not go looking for a cause.
+It cheers the widening. A few years later it runs the chain restaurant's press
+release, which says the traffic counts sold them the site. Years after that it
+runs a baffled piece about the public works gap. It never notices that these are
+the same story, and there is no code path by which it could: its whole view of
+the simulation is one `Observation`, holding a single year of things a person in
+Fairview can see or hear, and a test enforces that nothing else in `src/paper/`
+reaches past it. Revenue per acre, infrastructure liability and reachability are
+all deliberately absent from that type.
+
+Around the twentieth year, on a corridor that earned it, the desk comes round.
+That is not on a schedule. The paper keeps its own count of how long the street
+has been a decent place to stand - measured from four things a resident can
+perceive, how loud it is, how wide it is, whether there is shade and whether
+anybody else is out walking - and it prints the piece when that count reaches
+seven. Across thirteen corridors a patient plan turns it about eight times in
+ten, with a median around year twenty. Doing nothing turns it never. Taking the
+widening turns it never. Planting trees along a six-lane arterial and changing
+nothing else turns it never either, which is the point.
+
+The photograph is a crop of the live isometric render, taken at the place the
+lead story is about and put through a coarse dot screen at forty-five degrees.
+The year the boulevard finally has trees on it, the trees are in the photo, and
+nobody had to write a line of copy saying so.
 
 ## Notes on the model
 

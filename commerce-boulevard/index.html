@@ -179,6 +179,83 @@
     z-index: 3; transition: bottom 0.18s ease; }
   body.folded #hint { bottom: 48px; }
   #hint b { color: var(--muted); font-weight: 500; }
+
+  /* --- The Fairview Ledger ---------------------------------------------- */
+  /* Newsprint, printed in one colour on grey stock. Nothing on this page uses
+     the game's palette: the paper is a different object, made somewhere else,
+     and it should feel like something that landed on the mat. */
+  #paper { background: rgba(6, 7, 10, 0.93); align-items: flex-start; padding: 0;
+    overflow-y: auto; z-index: 30; }
+  #papersheet { --news: #e2ddd0; --newsink: #1c1a1e; --newsfaint: #6a655c;
+    background: var(--news); color: var(--newsink); width: 100%; max-width: 940px;
+    margin: 24px auto; padding: 26px 34px 30px; border-radius: 2px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.65);
+    font: 14px/1.5 Georgia, "Iowan Old Style", "Times New Roman", serif; }
+
+  #papersheet .masthead { text-align: center; margin-bottom: 16px; }
+  #papersheet .masthead h1 { margin: 4px 0 2px; font-size: 52px; line-height: 1;
+    letter-spacing: -0.015em; font-weight: 700; font-variant: small-caps; }
+  #papersheet .rule { height: 2px; background: var(--newsink); }
+  #papersheet .rule + h1 + .rule { height: 1px; }
+  #papersheet .folio { display: flex; justify-content: space-between; margin-top: 5px;
+    font-size: 10.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--newsfaint); }
+
+  #papersheet .columns { display: grid; grid-template-columns: 1.55fr 1fr; gap: 0; }
+  #papersheet .col { padding: 0 18px; }
+  #papersheet .col.lead { border-right: 1px solid rgba(28, 26, 30, 0.28); padding-left: 0; }
+  #papersheet .col.side { padding-right: 0; }
+
+  #papersheet article.top h3 { margin: 0 0 6px; font-size: 31px; line-height: 1.08;
+    letter-spacing: -0.015em; font-weight: 700; }
+  #papersheet article.second h3 { margin: 0 0 4px; font-size: 17px; line-height: 1.18; font-weight: 700; }
+  #papersheet article.second { padding-bottom: 12px; margin-bottom: 12px;
+    border-bottom: 1px solid rgba(28, 26, 30, 0.22); }
+  #papersheet .sub { margin: 0 0 8px; font-size: 14px; font-style: italic; color: #3d3a3f; line-height: 1.4; }
+  #papersheet .body { margin: 0; text-align: justify; hyphens: auto; font-size: 13.5px; }
+  #papersheet article.top .body::first-letter { float: left; font-size: 44px; line-height: 0.82;
+    padding: 4px 6px 0 0; font-weight: 700; }
+
+  #papersheet figure { margin: 16px 0 0; }
+  #papersheet figure canvas { width: 100%; height: auto; display: block;
+    image-rendering: pixelated; filter: contrast(1.04); }
+  #papersheet figcaption { margin-top: 5px; font-size: 11px; line-height: 1.42; color: var(--newsfaint);
+    border-bottom: 1px solid rgba(28, 26, 30, 0.22); padding-bottom: 8px; }
+
+  #papersheet h4 { margin: 0 0 6px; font-size: 10.5px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--newsfaint);
+    border-bottom: 2px solid var(--newsink); padding-bottom: 4px; }
+  #papersheet .briefs ul { margin: 0; padding: 0; list-style: none; }
+  #papersheet .briefs li { font-size: 13px; padding: 5px 0; line-height: 1.32;
+    border-bottom: 1px dotted rgba(28, 26, 30, 0.3); }
+  #papersheet .letters { margin-top: 18px; padding: 12px 14px; background: rgba(28, 26, 30, 0.055);
+    border-top: 2px solid var(--newsink); }
+  #papersheet .letters p { margin: 0; font-size: 13px; line-height: 1.55; }
+  #papersheet .letters .sig { margin-top: 7px; font-style: italic; color: #46424a; font-size: 12px; }
+
+  #papersheet .fold { display: block; width: 100%; margin-top: 22px; padding: 11px;
+    border: 1px solid rgba(28, 26, 30, 0.4); border-radius: 2px; color: #46424a;
+    font: 11px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
+  #papersheet .fold:hover { background: var(--newsink); color: var(--news); }
+
+  /* The one issue where the desk comes round gets the treatment it would
+     actually get: a heavier masthead rule and the lead set wider. */
+  #paper.turned #papersheet .masthead .rule { height: 4px; }
+  #paper.turned #papersheet article.top h3 { font-size: 36px; }
+
+  /* --- The year turning -------------------------------------------------- */
+  #season { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 7vh; pointer-events: none; z-index: 8; opacity: 0;
+    transition: opacity 0.55s ease; }
+  #season.on { opacity: 1; }
+  #season span { font: 13px/1 var(--mono); letter-spacing: 0.42em; text-transform: uppercase;
+    color: var(--ink); text-shadow: 0 2px 20px rgba(0, 0, 0, 0.95), 0 0 40px rgba(0, 0, 0, 0.8); }
+  body.advancing #dock, body.advancing #hint { opacity: 0.1; pointer-events: none;
+    transition: opacity 0.5s ease; }
+  body.advancing #skip { display: block; }
+  #skip { display: none; position: fixed; right: 14px; bottom: 14px; z-index: 9;
+    font: 10px/1 var(--mono); letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--faint); padding: 8px 12px; border: 1px solid var(--line); border-radius: 3px; }
+  #skip:hover { color: var(--ink); border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -207,6 +284,10 @@
 
 <div id="hint"></div>
 
+<div id="season"><span></span></div>
+<button id="skip">Skip &rarr;</button>
+
+<div class="veil hidden" id="paper"><div id="papersheet"></div></div>
 <div class="veil hidden" id="modal"><div class="sheet" id="modalsheet"></div></div>
 <div class="veil hidden" id="why"><div class="sheet" id="whysheet"></div></div>
 

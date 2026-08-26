@@ -18,6 +18,41 @@ import type { LightName, SeasonName } from '../render/palette'
 import { duration, escapeHtml, money, percent } from './format'
 import { initWhy, showWhy } from './why'
 import { hideModal, runOpening, showEnding } from './opening'
+import { showFrontPage } from './newspaper'
+import { observe } from '../paper/observation'
+import { circumstanceOf, newMemory, type PaperMemory } from '../paper/residents'
+import { composeFrontPage } from '../paper/paper'
+
+/**
+ * The year turning.
+ *
+ * Four seasons at two seconds each, done entirely by swapping the palette's
+ * lookup table - no sprite is redrawn and nothing is re-rasterised, which is
+ * the whole reason the renderer works in palette indices. The corridor itself
+ * is rebuilt during the autumn-to-winter change, under snow, so a shop that
+ * closed or a building that went up arrives without a pop.
+ */
+const YEAR_SEASONS: { season: SeasonName; light: LightName; caption: string }[] = [
+  { season: 'spring', light: 'day', caption: 'Spring' },
+  { season: 'summer', light: 'day', caption: 'Summer' },
+  { season: 'autumn', light: 'dusk', caption: 'Autumn' },
+  { season: 'winter', light: 'overcast', caption: 'Winter' },
+]
+const SEASON_MS = 2000
+
+/** The plan the simulation tests use, for the ?ff= development shortcut. */
+const DEV_PLAN: Record<number, string[]> = {
+  0: ['land.reduce_parking_minimums'], 1: ['land.allow_mixed_use'],
+  2: ['fiscal.business_improvement_district'], 3: ['street.plant_trees'],
+  4: ['land.reduce_setbacks'], 5: ['fiscal.land_value_shift'],
+  6: ['land.abolish_parking_minimums'], 7: ['capital.road_diet'], 8: ['capital.repave'],
+  9: ['street.add_kerb_parking'], 10: ['fiscal.price_parking'], 11: ['land.raise_height_limit'],
+  12: ['street.lower_target_speed'], 13: ['fiscal.land_value_shift'], 14: ['street.narrow_lanes'],
+  15: ['street.add_crossings'], 16: ['land.raise_height_limit'], 17: ['street.plant_trees'],
+  18: ['capital.bulb_outs'], 19: ['fiscal.land_value_shift'], 20: ['street.landscaped_median'],
+  21: ['land.form_based_code'], 22: ['capital.repave'], 23: ['street.plant_trees'],
+  24: ['street.widen_sidewalks'], 25: ['capital.plaza_middle'],
+}
 
 const TABS: { id: InstrumentTab; label: string }[] = [
   { id: 'street', label: 'Street' },
@@ -36,9 +71,14 @@ export class Game {
   private selected = new Set<string>()
   private tab: InstrumentTab = 'capital'
   private started = false
+  private advancing = false
+  private skipped = false
+  private memory: PaperMemory
+  private sceneId = 0
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.state = newGame(seedForToday())
+    this.memory = newMemory(this.state)
     this.renderer = new IsometricRenderer(canvas)
     initWhy()
     this.bindInput()
@@ -49,7 +89,9 @@ export class Game {
     this.renderer.lookAt(0.5, 0)
     this.renderer.camera.gy = 38
     this.renderAll()
-    void this.open()
+    const skipTo = Number(new URLSearchParams(window.location.search).get('ff') ?? 0)
+    if (import.meta.env.DEV && skipTo > 0) this.fastForward(skipTo)
+    else void this.open()
     requestAnimationFrame((t) => this.frame(t))
   }
 
@@ -64,8 +106,31 @@ export class Game {
     this.renderAll()
   }
 
+  /**
+   * Play forward silently, for looking at a late corridor without sitting
+   * through thirty years of it. Development only - the query string does
+   * nothing in a built game.
+   */
+  private fastForward(years: number): void {
+    this.started = true
+    for (let y = 0; y < years && !this.state.ended; y++) {
+      const before = cityShortfall(this.state)
+      this.state = advanceYear(this.state, DEV_PLAN[this.state.year] ?? []).state
+      // Run the paper too, so its memory - who has written in, what it has
+      // already printed, whether it has come round - is where it should be.
+      const frozen = this.state
+      composeFrontPage(
+        observe(this.state, cityShortfall(this.state), before),
+        this.memory, (r) => circumstanceOf(r, frozen), this.state.seed,
+      )
+    }
+    this.refreshScene()
+    this.renderAll()
+  }
+
   private restart(): void {
     this.state = newGame(seedForToday())
+    this.memory = newMemory(this.state)
     this.selected.clear()
     this.started = false
     this.refreshScene()
@@ -73,14 +138,43 @@ export class Game {
     void this.open()
   }
 
-  private advance(): void {
-    if (this.state.ended) return
+  private async advance(): Promise<void> {
+    if (this.state.ended || this.advancing) return
+    this.advancing = true
+    this.skipped = false
+    document.body.classList.add('advancing')
+
     const chosen = [...this.selected]
+    const shortfallBefore = cityShortfall(this.state)
+
+    // Spring, summer, autumn. The city is still last year's city.
+    for (const step of YEAR_SEASONS.slice(0, 3)) {
+      this.renderer.setSeason(step.season)
+      this.renderer.setLight(step.light)
+      this.showSeason(step.caption)
+      await this.wait(SEASON_MS)
+    }
+
+    // The year actually happens between autumn and winter.
     const result = advanceYear(this.state, chosen)
     this.state = result.state
     this.selected.clear()
     this.refreshScene()
     this.renderAll()
+
+    const winter = YEAR_SEASONS[3]!
+    this.renderer.setSeason(winter.season)
+    this.renderer.setLight(winter.light)
+    this.showSeason(winter.caption)
+    await this.wait(SEASON_MS)
+
+    this.showSeason(null)
+    this.renderer.setSeason('summer')
+    this.renderer.setLight('day')
+    document.body.classList.remove('advancing')
+    this.advancing = false
+
+    await this.readThePaper(shortfallBefore)
 
     // Vocabulary the player has just earned by causing the thing it names.
     const unlocked = this.state.events.filter((e) => e.id === 'glossary_unlocked')
@@ -89,6 +183,42 @@ export class Game {
       return
     }
     if (this.state.ended) showEnding(this.state, () => this.restart())
+  }
+
+  /**
+   * The paper arrives. It is composed from an observation of the year that has
+   * just passed and nothing else - the game does not tell it what to say, and
+   * this method could not tell it either if it wanted to.
+   */
+  private async readThePaper(shortfallBefore: number): Promise<void> {
+    const observation = observe(this.state, cityShortfall(this.state), shortfallBefore)
+    const frozen = this.state
+    const page = composeFrontPage(
+      observation, this.memory, (r) => circumstanceOf(r, frozen), this.state.seed,
+    )
+    await showFrontPage(page, {
+      scene: buildScene(this.state),
+      sceneId: this.sceneId,
+      season: 'summer',
+      light: 'day',
+    })
+  }
+
+  private showSeason(caption: string | null): void {
+    const banner = el('season')
+    banner.classList.toggle('on', caption !== null)
+    if (caption) banner.querySelector('span')!.textContent = caption
+  }
+
+  /** Wait, unless the player has said they would rather not. */
+  private wait(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      if (this.skipped) { resolve(); return }
+      const timer = window.setTimeout(resolve, ms)
+      const skip = (): void => { this.skipped = true; window.clearTimeout(timer); resolve() }
+      el('skip').addEventListener('click', skip, { once: true })
+      window.setTimeout(() => el('skip').removeEventListener('click', skip), ms)
+    })
   }
 
   private showGlossary(id: string): void {
@@ -111,6 +241,7 @@ export class Game {
 
   private refreshScene(): void {
     this.renderer.setScene(buildScene(this.state))
+    this.sceneId++
   }
 
   private fit(): void {
@@ -389,7 +520,7 @@ export class Game {
       this.renderer.zoomBy(event.deltaY < 0 ? 1.12 : 1 / 1.12)
     }, { passive: false })
 
-    el('advance').addEventListener('click', () => this.advance())
+    el('advance').addEventListener('click', () => void this.advance())
     window.addEventListener('resize', () => this.fit())
 
     const LIGHTS: LightName[] = ['day', 'dusk', 'night', 'overcast']
@@ -397,7 +528,7 @@ export class Game {
     window.addEventListener('keydown', (event) => {
       if (!this.started) return
       const key = event.key.toLowerCase()
-      if (key === ' ') { event.preventDefault(); this.advance(); return }
+      if (key === ' ') { event.preventDefault(); void this.advance(); return }
       if (key >= '1' && key <= '4') { this.renderer.setLight(LIGHTS[Number(key) - 1]!); return }
       if (SEASONS[key]) { this.renderer.setSeason(SEASONS[key]!); this.refreshScene() }
     })

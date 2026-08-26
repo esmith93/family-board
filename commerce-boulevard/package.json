@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "model": "vite-node tools/gen-model.ts",
     "sim": "vite-node tools/smoke.ts",
-    "sweep": "vite-node tools/sweep.ts"
+    "sweep": "vite-node tools/sweep.ts",
+    "paper": "vite-node tools/read-paper.ts",
+    "shots": "node tools/shot.mjs && node tools/shot-paper.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.3.0",
