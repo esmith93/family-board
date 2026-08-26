@@ -249,7 +249,11 @@ const street: Instrument[] = [
     pcCost: () => 4,
     constructionYears: 1,
     applicable: (s) => s.street.treesPerMilePerSide < 80,
-    apply: (s) => { s.street.treesPerMilePerSide = Math.min(80, s.street.treesPerMilePerSide + 40) },
+    apply: (s) => {
+      const added = Math.min(80, s.street.treesPerMilePerSide + 40) - s.street.treesPerMilePerSide
+      s.street.treesPerMilePerSide += added
+      if (added > 0) s.street.treePlantings.push({ year: s.year, perMilePerSide: added })
+    },
   }),
   make({
     id: 'street.pedestrian_lighting',

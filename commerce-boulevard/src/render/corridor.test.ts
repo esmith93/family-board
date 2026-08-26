@@ -216,21 +216,51 @@ describe('curb cuts', () => {
 
 describe('street trees', () => {
   it('are not there before anybody plants them', () => {
-    expect(treesOf({ ...newGame('a').street, treesPerMilePerSide: 0 }, 10)).toEqual([])
+    expect(treesOf({ ...newGame('a').street, treePlantings: [] }, 10)).toEqual([])
   })
 
-  it('are saplings the year after they go in and shade twenty years later', () => {
-    const street = { ...newGame('a').street, treesPerMilePerSide: 60 }
-    const young = treesOf(street, 2)
-    const old = treesOf(street, 26)
+  it('grow from their OWN age, not from the year on the calendar', () => {
+    // The bug this replaced: maturity was the simulation year, so Fairview's
+    // thirty-year-old trees were sticks in year zero and a sapling planted in
+    // year nineteen was full grown the moment it went in.
+    const street = { ...newGame('a').street, treePlantings: [{ year: 4, perMilePerSide: 40 }] }
+    const young = treesOf(street, 6)
+    const old = treesOf(street, 30)
     expect(young.length).toBe(old.length)
     const mean = (ts: typeof young): number => ts.reduce((s, t) => s + t.maturity, 0) / ts.length
     expect(mean(young)).toBeLessThan(0.2)
     expect(mean(old)).toBeGreaterThan(0.8)
   })
 
+  it('starts the corridor with old trees rather than new ones', () => {
+    const trees = treesOf(newGame('a').street, 0)
+    expect(trees.length).toBeGreaterThan(4)
+    expect(trees.every((t) => t.maturity > 0.8)).toBe(true)
+  })
+
+  it('puts a new cohort in between the old one rather than on top of it', () => {
+    const state = advanceYear(newGame('a'), ['street.plant_trees']).state
+    const trees = treesOf(state.street, state.year + 3)
+    const grown = trees.filter((t) => t.maturity > 0.8).length
+    const sticks = trees.filter((t) => t.maturity < 0.25).length
+    // Both on the same street, which is what a street planted twice looks like.
+    expect(grown).toBeGreaterThan(4)
+    expect(sticks).toBeGreaterThan(grown)
+  })
+
+  it('keeps the planting record in step with the density the model charges for', () => {
+    let state = newGame('a')
+    for (const year of [3, 9, 20]) {
+      while (state.year < year) state = advanceYear(state, []).state
+      state = advanceYear(state, ['street.plant_trees']).state
+    }
+    const recorded = state.street.treePlantings.reduce((sum, p) => sum + p.perMilePerSide, 0)
+    expect(recorded).toBe(state.street.treesPerMilePerSide)
+  })
+
   it('are not all the same height, which would read as wallpaper', () => {
-    const trees = treesOf({ ...newGame('a').street, treesPerMilePerSide: 60 }, 14)
+    const street = { ...newGame('a').street, treePlantings: [{ year: 0, perMilePerSide: 60 }] }
+    const trees = treesOf(street, 14)
     expect(new Set(trees.map((t) => t.maturity.toFixed(3))).size).toBeGreaterThan(6)
   })
 })

@@ -19,6 +19,7 @@ import { duration, escapeHtml, money, percent } from './format'
 import { initWhy, showWhy } from './why'
 import { hideModal, runOpening, showEnding } from './opening'
 import { showFrontPage } from './newspaper'
+import { FirstPerson } from './camera'
 import { observe } from '../paper/observation'
 import { circumstanceOf, newMemory, type PaperMemory } from '../paper/residents'
 import { composeFrontPage } from '../paper/paper'
@@ -75,6 +76,7 @@ export class Game {
   private skipped = false
   private memory: PaperMemory
   private sceneId = 0
+  private readonly firstPerson = new FirstPerson()
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.state = newGame(seedForToday())
@@ -252,8 +254,29 @@ export class Game {
   }
 
   private frame(time: number): void {
-    this.renderer.render(time)
+    // The first-person views run their own loop and own the screen while they
+    // are up; drawing the corridor from above behind them is work nobody sees.
+    if (!this.firstPerson.isOpen) this.renderer.render(time)
     requestAnimationFrame((t) => this.frame(t))
+  }
+
+  /**
+   * Get out of the office.
+   *
+   * The corridor as it stands in whatever year it currently is, from the seat
+   * of a car or from the pavement. Nothing is explained; the player drives or
+   * walks and draws their own conclusions, which is the only way the ones that
+   * matter ever get drawn.
+   */
+  private getOut(mode: 'drive' | 'walk'): void {
+    if (!this.started || this.advancing || this.state.ended) return
+    this.firstPerson.setPalette(this.renderer.lightName, this.renderer.seasonName)
+    el('fpkeys').innerHTML = mode === 'drive'
+      ? '<b>up</b> accelerate &nbsp; <b>down</b> brake &nbsp; <b>left / right</b> change lane'
+        + '<br><b>esc</b> back to the office'
+      : '<b>left / right</b> walk &nbsp; <b>up</b> cross'
+        + '<br><b>esc</b> back to the office'
+    this.firstPerson.open(this.state, mode, () => this.renderAll())
   }
 
   // --- Rendering the chrome ------------------------------------------------
@@ -489,7 +512,7 @@ export class Game {
       ? 'The ledger is open to you now.'
       : s.year === 0 ? 'Pick as much or as little as you like, then advance the year.'
         : `${percent(s.modeShare.walk, 1)} of trips on foot &middot; ${Math.round(s.traffic.peakSpeedMph)} mph at the peak &middot; ${Math.round(s.environment.sidewalkNoiseDba)} dBA at the kerb`
-    el('hint').innerHTML = `<b>drag</b> pan &middot; <b>wheel</b> zoom &middot; <b>1&ndash;4</b> light &middot; <b>Q W E T</b> season &nbsp;&nbsp; ${hint}`
+    el('hint').innerHTML = `<b>drag</b> pan &middot; <b>wheel</b> zoom &middot; <b>1&ndash;4</b> light &middot; <b>Q W E T</b> season &middot; <b>V</b> drive &middot; <b>B</b> walk &nbsp;&nbsp; ${hint}`
   }
 
   // --- Input ---------------------------------------------------------------
@@ -530,8 +553,12 @@ export class Game {
       const key = event.key.toLowerCase()
       if (key === ' ') { event.preventDefault(); void this.advance(); return }
       if (key >= '1' && key <= '4') { this.renderer.setLight(LIGHTS[Number(key) - 1]!); return }
+      if (key === 'v') { this.getOut('drive'); return }
+      if (key === 'b') { this.getOut('walk'); return }
       if (SEASONS[key]) { this.renderer.setSeason(SEASONS[key]!); this.refreshScene() }
     })
+    el('godrive').addEventListener('click', () => this.getOut('drive'))
+    el('gowalk').addEventListener('click', () => this.getOut('walk'))
   }
 }
 

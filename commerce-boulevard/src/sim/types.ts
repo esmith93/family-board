@@ -134,6 +134,16 @@ export interface StreetState {
   median: MedianType
   /** Shade trees per mile per side. */
   treesPerMilePerSide: number
+  /**
+   * When each cohort of street trees went in.
+   *
+   * A tree's age is not the city's age. Fairview's handful of old ones were
+   * planted before anybody now on the council was born; the forty a mile the
+   * player buys in year nineteen are sticks in year twenty-one and shade in
+   * year thirty-four, and the two stand next to each other on the same block.
+   * Recording only a total would draw them all the same height.
+   */
+  treePlantings: { year: number; perMilePerSide: number }[]
   lighting: LightingType
   busLane: boolean
   /** Buses per hour, peak direction. 0 = no service. */

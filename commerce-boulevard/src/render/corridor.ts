@@ -118,6 +118,23 @@ export interface StreetTree {
   maturity: number
 }
 
+/** Something bolted to the footway. */
+export interface Furniture {
+  stationFt: number
+  side: Side
+  kind: 'lamp' | 'pole' | 'shelter'
+  heightFt: number
+  /** Pedestrian-scale lighting, or an upgraded shelter. */
+  fine: boolean
+}
+
+/** A car left in the kerbside bay. */
+export interface ParkedCar {
+  stationFt: number
+  side: Side
+  tint: number
+}
+
 export interface CorridorModel {
   lengthFt: number
   /** North kerb to south kerb. */
@@ -130,6 +147,8 @@ export interface CorridorModel {
   south: Frontage[]
   curbCuts: CurbCut[]
   trees: StreetTree[]
+  furniture: Furniture[]
+  parked: ParkedCar[]
   /** Segments with no through traffic at all. */
   plazaSegments: number[]
   year: number
@@ -169,7 +188,11 @@ export function junctionsOf(street: StreetState): Junction[] {
 export function crossingsOf(street: StreetState): Crossing[] {
   const out: Crossing[] = junctionsOf(street).map((j) => ({ stationFt: j.stationFt, signalised: true }))
   const spacing = Math.max(120, street.crossingSpacingFt)
-  for (let station = spacing; station < C.CORRIDOR_LENGTH_FT; station += spacing) {
+  // Starting at half a spacing rather than a whole one, so the two ends of the
+  // corridor are covered too. Without it the last quarter mile has nowhere to
+  // cross however much the city spends, which is an artefact of the loop and
+  // not a fact about the street.
+  for (let station = spacing / 2; station < C.CORRIDOR_LENGTH_FT; station += spacing) {
     // Do not mark one on top of a junction.
     if (out.some((c) => Math.abs(c.stationFt - station) < spacing * 0.4)) continue
     out.push({ stationFt: station, signalised: false })
@@ -277,30 +300,122 @@ export function curbCutsOf(parcels: readonly Parcel[]): CurbCut[] {
  * in every view.
  */
 export function treesOf(street: StreetState, year: number): StreetTree[] {
-  if (street.treesPerMilePerSide <= 0) return []
-  const perSide = (street.treesPerMilePerSide * C.CORRIDOR_LENGTH_FT) / 5280
-  if (perSide < 1) return []
-  const spacing = C.CORRIDOR_LENGTH_FT / perSide
   const out: StreetTree[] = []
-  for (const side of ['north', 'south'] as const) {
-    for (let station = spacing / 2; station < C.CORRIDOR_LENGTH_FT; station += spacing) {
-      out.push({ stationFt: station, side, maturity: maturityAt(year, station, side) })
+  const lengthMiles = C.CORRIDOR_LENGTH_FT / 5280
+  const total = street.treePlantings.reduce((sum, p) => sum + p.perMilePerSide, 0)
+  if (total <= 0) return out
+
+  /*
+   * Cohorts interleave rather than stacking: forty new trees a mile go into
+   * the gaps between the eight that were already there, so a block planted in
+   * year nineteen has one big tree and five sticks on it, which is what a
+   * street that has been planted twice actually looks like.
+   */
+  let placed = 0
+  for (const cohort of street.treePlantings) {
+    const perSide = Math.round(cohort.perMilePerSide * lengthMiles)
+    if (perSide < 1) { placed += cohort.perMilePerSide; continue }
+    const spacing = C.CORRIDOR_LENGTH_FT / perSide
+    const phase = (placed / total) * spacing
+    const age = Math.max(0, year - cohort.year)
+    for (const side of ['north', 'south'] as const) {
+      for (let i = 0; i < perSide; i++) {
+        const stationFt = phase + spacing * (i + 0.5)
+        if (stationFt >= C.CORRIDOR_LENGTH_FT) continue
+        out.push({ stationFt, side, maturity: maturityAt(age, stationFt, side) })
+      }
     }
+    placed += cohort.perMilePerSide
   }
-  return out
+  return out.sort((a, b) => a.stationFt - b.stationFt)
 }
 
 /**
- * How grown a tree is, 0 to 1.
+ * How grown a tree is, 0 to 1, from ITS OWN age.
  *
- * Deliberately not uniform: a corridor whose trees all went in at once and are
- * all exactly the same height reads as wallpaper. The variation is a function
- * of position, so it is the same every time the view is opened.
+ * Deliberately not uniform: a row whose trees are all exactly the same height
+ * reads as wallpaper. The variation is a function of position, so it is the
+ * same every time the view is opened.
  */
-function maturityAt(year: number, station: number, side: Side): number {
+function maturityAt(ageYears: number, station: number, side: Side): number {
   const jitter = ((Math.sin(station * 0.017 + (side === 'north' ? 0 : 1.7)) + 1) / 2) * 0.25
-  const grown = Math.max(0, Math.min(1, year / 22))
-  return Math.max(0.05, Math.min(1, grown * (0.85 + jitter)))
+  const grown = Math.max(0, Math.min(1, ageYears / C.STREET_TREE_MATURITY_YEARS))
+  return Math.max(0.04, Math.min(1, grown * (0.85 + jitter)))
+}
+
+/**
+ * Everything bolted to the footway.
+ *
+ * Three instruments live here and nowhere else in the picture. Lighting sets
+ * how tall the lamps are and how far apart: a high-mast cobra head every two
+ * hundred and forty feet lights the carriageway and leaves the footway between
+ * the pools; a pedestrian-scale standard every ninety feet lights the footway.
+ * Undergrounding the utilities is five million dollars for the sole visible
+ * result that the poles and the crossarms go away. And a bus route with no
+ * shelters is a pole with a timetable on it.
+ */
+export function furnitureOf(street: StreetState): Furniture[] {
+  const out: Furniture[] = []
+  const lamp = street.lighting === 'pedestrian_scale' ? { every: 92, height: 14, fine: true }
+    : street.lighting === 'cobra_standard' ? { every: 175, height: 28, fine: false }
+      : { every: 240, height: 36, fine: false }
+
+  for (const side of ['north', 'south'] as const) {
+    // High-mast lighting alternates sides; pedestrian-scale does not, because
+    // the point of it is that both footways are lit.
+    const offset = side === 'south' && !lamp.fine ? lamp.every / 2 : 0
+    for (let station = offset + 30; station < C.CORRIDOR_LENGTH_FT; station += lamp.every) {
+      out.push({ stationFt: station, side, kind: 'lamp', heightFt: lamp.height, fine: lamp.fine })
+    }
+  }
+
+  if (!street.utilitiesUndergrounded) {
+    for (let station = 55; station < C.CORRIDOR_LENGTH_FT; station += 130) {
+      out.push({ stationFt: station, side: 'south', kind: 'pole', heightFt: 34, fine: false })
+    }
+  }
+
+  if (street.transitBusesPerHour > 0) {
+    for (let station = 240; station < C.CORRIDOR_LENGTH_FT; station += 1050) {
+      out.push({
+        stationFt: station, side: 'north', kind: 'shelter',
+        heightFt: street.transitStopsUpgraded ? 9 : 7.5, fine: street.transitStopsUpgraded,
+      })
+      out.push({
+        stationFt: station + 90, side: 'south', kind: 'shelter',
+        heightFt: street.transitStopsUpgraded ? 9 : 7.5, fine: street.transitStopsUpgraded,
+      })
+    }
+  }
+  return out.sort((a, b) => a.stationFt - b.stationFt)
+}
+
+/**
+ * What is left at the kerb.
+ *
+ * A free kerb lane on a corridor like this is full, which is most of what
+ * kerbside parking looks like from the street. Charging for it empties it -
+ * that is the whole mechanism, and it is the one instrument in the game whose
+ * effect you can count from the pavement.
+ */
+export function parkedCarsOf(street: StreetState): ParkedCar[] {
+  if (street.onStreetParking === 'none') return []
+  const occupancy = street.onStreetParking === 'free'
+    ? 0.92
+    : Math.max(0.3, 0.92 - street.meterPricePerHour * 0.12)
+  const out: ParkedCar[] = []
+  const stall = 22
+  for (const side of ['north', 'south'] as const) {
+    for (let i = 0; ; i++) {
+      const stationFt = i * stall + (side === 'north' ? 6 : 13)
+      if (stationFt >= C.CORRIDOR_LENGTH_FT) break
+      // Deterministic, so the same bays are empty every time you walk past.
+      const roll = ((Math.sin(stationFt * 0.091 + (side === 'north' ? 0 : 2.4)) + 1) / 2)
+      if (roll > occupancy) continue
+      out.push({ stationFt, side, tint: Math.floor(roll * 97) % 4 })
+    }
+  }
+  return out
 }
 
 /** Everything both first-person cameras need, built once per year. */
@@ -317,6 +432,8 @@ export function corridorModel(state: SimState): CorridorModel {
     south: frontagesOf(state.parcels, 'south'),
     curbCuts: curbCutsOf(state.parcels),
     trees: treesOf(street, state.year),
+    furniture: furnitureOf(street),
+    parked: parkedCarsOf(street),
     plazaSegments: [...street.plazaSegments],
     year: state.year,
   }

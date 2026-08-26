@@ -70,6 +70,8 @@ export interface DriveWorld {
   pavementAgeYears: number
   aadt: number
   year: number
+  /** Vehicles per second in one running lane at the peak. */
+  flowPerLaneSec: number
 }
 
 export function buildDriveWorld(state: SimState): DriveWorld {
@@ -111,6 +113,7 @@ export function buildDriveWorld(state: SimState): DriveWorld {
    * charges everybody else.
    */
   const timingSeed = fnv(state.seed) + state.year * 7919
+  const runningLanes = model.bands.filter((b) => b.direction !== 0).length
   const coordinated = street.signalPolicy === 'vehicle_progression'
   const cyclesSec = model.junctions.map((_, index) =>
     coordinated ? cycleSec : cycleSec * (0.84 + hash01(index, timingSeed + 733) * 0.34))
@@ -153,6 +156,9 @@ export function buildDriveWorld(state: SimState): DriveWorld {
     pavementAgeYears: street.pavementAgeYears,
     aadt: state.traffic.aadt,
     year: state.year,
+    // Ten per cent of the day in the peak hour, split over the running lanes,
+    // which is the usual rule for an arterial.
+    flowPerLaneSec: runningLanes > 0 ? (state.traffic.aadt * 0.1) / runningLanes / 3600 : 0,
   }
 }
 
@@ -190,8 +196,9 @@ const BRAKE_FPS2 = 19
 const STOP_LINE_FT = 26
 
 export function newDrive(world: DriveWorld): DriveState {
-  // Start in the kerbside eastbound lane, at the west end, already rolling.
-  const eastbound = world.model.bands.filter((b) => b.direction === 1)
+  // Start in the kerbside eastbound GENERAL lane, at the west end, already
+  // rolling. A bus lane also runs east; it is not for this car.
+  const eastbound = world.model.bands.filter((b) => b.direction === 1 && b.role !== 'bus_lane')
   const lane = eastbound[eastbound.length - 1] ?? world.model.bands[0]!
   return {
     stationFt: 40,
@@ -317,7 +324,7 @@ export function stepDrive(
 
   // --- Where that puts the car ---
   next.stationFt = state.stationFt + next.speedFps * dt
-  const lanes = world.model.bands.filter((b) => b.direction === 1)
+  const lanes = world.model.bands.filter((b) => b.direction === 1 && b.role !== 'bus_lane')
   if (lanes.length > 0) {
     const first = lanes[0]!
     const last = lanes[lanes.length - 1]!
@@ -427,23 +434,42 @@ export function renderDrive(
   drawProps(world, state, frame, horizon, proj, eye, timeMs)
 }
 
-/** Three bands and a dither between them, which is how a sky was done. */
+/**
+ * A four by four ordered dither.
+ *
+ * Three sky colours over four hundred rows is three bands and two hard edges.
+ * Thresholding the blend against this matrix turns the edges into a stipple
+ * that reads as a gradient, which is what an indexed renderer has instead of
+ * more colours - and what every machine that had a palette did about it.
+ */
+const BAYER = Uint8Array.from([
+  0, 8, 2, 10,
+  12, 4, 14, 6,
+  3, 11, 1, 9,
+  15, 7, 13, 5,
+])
+
+/** Blend two palette entries by ordered dither, at 0..1. */
+function ditherPair(a: number, b: number, mix: number, x: number, y: number): number {
+  const threshold = (BAYER[(y & 3) * 4 + (x & 3)]! + 0.5) / 16
+  return mix > threshold ? b : a
+}
+
+/** A gradient in three colours, which is all an indexed palette has. */
 function drawSky(frame: DriveFrame, horizon: number): void {
   const { width: w, pixels } = frame
   const top = Math.max(1, horizon)
   // Through the horizon row inclusive: the ground starts one row below it, and
   // a row nobody paints is a row of holes.
   for (let y = 0; y <= Math.min(horizon, frame.height - 1); y++) {
-    const t = y / top
-    const band = t < 0.34 ? P.skyHigh : t < 0.72 ? P.skyMid : P.skyLow
-    const nextBand = t < 0.34 ? P.skyMid : t < 0.72 ? P.skyLow : P.skyLow
-    // Dither across each boundary so three colours read as a gradient.
-    const edge = t < 0.34 ? Math.abs(t - 0.34) : t < 0.72 ? Math.abs(t - 0.72) : 1
-    const mix = edge < 0.09
+    const t = Math.min(0.9999, y / top)
+    const f = t * 2
+    const seg = f | 0
+    const mix = f - seg
+    const a = seg === 0 ? P.skyHigh : P.skyMid
+    const b = seg === 0 ? P.skyMid : P.skyLow
     const row = y * w
-    for (let x = 0; x < w; x++) {
-      pixels[row + x] = mix && ((x + y) & 1) === 0 ? nextBand : band
-    }
+    for (let x = 0; x < w; x++) pixels[row + x] = ditherPair(a, b, mix, x, y)
   }
 }
 
@@ -691,7 +717,7 @@ interface Billboard {
   widthFt: number
   /** Feet above the ground the bottom sits. */
   liftFt: number
-  kind: 'tree' | 'signal' | 'pole' | 'car' | 'person' | 'lamp' | 'sign'
+  kind: 'tree' | 'signal' | 'pole' | 'car' | 'person' | 'lamp' | 'sign' | 'shelter'
   tint: number
 }
 
@@ -735,30 +761,84 @@ function drawProps(
     })
   }
 
-  // Oncoming traffic, spaced by how much of it there is.
-  const gapFt = Math.max(70, 2_600_000 / Math.max(2000, world.aadt))
-  const oncomingLane = model.bands.find((b) => b.direction === -1)
-  if (oncomingLane) {
-    const drift = ((timeMs / 1000) * world.runningSpeedMph * MPH_TO_FPS) % gapFt
-    const first = Math.ceil((px + 30) / gapFt) * gapFt
-    for (let s = first; s < px + VIEW_DISTANCE_FT * 0.6; s += gapFt) {
+  /*
+   * Oncoming traffic.
+   *
+   * Headway is the speed divided by the flow, which is how a road works: at
+   * six hundred vehicles an hour in a lane doing fifty you get one every four
+   * hundred feet, and at the same speed with twice the traffic you get one
+   * every two hundred. Which means the corridor filling back up after the
+   * widening is visible from the windscreen without anybody saying so.
+   *
+   * And it comes TOWARD you. The first version drifted it east at the
+   * player's own speed, so the same three cars sat ahead of the bonnet for
+   * the length of the corridor and nothing ever passed.
+   */
+  const speedFps = world.runningSpeedMph * MPH_TO_FPS
+  const headwayFt = Math.max(48, speedFps / Math.max(0.02, world.flowPerLaneSec))
+  const seconds = timeMs / 1000
+  for (let b = 0; b < model.bands.length; b++) {
+    const band = model.bands[b]!
+    if (band.direction !== -1) continue
+    // Each lane's platoon has its own phase, or the whole road arrives abreast.
+    const phase = hash01(b, 5171) * headwayFt
+    const drift = ((seconds * speedFps + phase) % headwayFt + headwayFt) % headwayFt
+    const first = Math.ceil((px + 20) / headwayFt) * headwayFt
+    for (let s = first; s < px + VIEW_DISTANCE_FT * 0.55; s += headwayFt) {
       boards.push({
-        stationFt: s + drift, acrossFt: oncomingLane.fromFt + oncomingLane.widthFt / 2,
-        heightFt: 5.2, widthFt: 6.2, liftFt: 0, kind: 'car', tint: (s / gapFt) % 4,
+        stationFt: s - drift, acrossFt: band.fromFt + band.widthFt / 2,
+        heightFt: 5.2, widthFt: 6.2, liftFt: 0, kind: 'car',
+        tint: Math.abs(Math.round(s / headwayFt) + b) % 4,
       })
     }
   }
 
-  if (!world.model.plazaSegments.length) {
-    for (const cut of model.curbCuts) {
-      const ahead = cut.stationFt - px
-      if (ahead < 6 || ahead > 420) continue
-      const acrossFt = cut.side === 'north' ? -model.sidewalkWidthFt - 6 : model.roadWidthFt + model.sidewalkWidthFt + 6
-      boards.push({
-        stationFt: cut.stationFt, acrossFt, heightFt: 5, widthFt: 12,
-        liftFt: 0, kind: 'car', tint: 2,
-      })
-    }
+  /*
+   * The furniture. Three instruments the player can buy live only here: what
+   * the lamps are, whether there are still poles and crossarms over the
+   * footway, and whether the bus stop is a shelter or a pole with a timetable.
+   */
+  for (const item of model.furniture) {
+    const ahead = item.stationFt - px
+    if (ahead < 3 || ahead > VIEW_DISTANCE_FT * 0.7) continue
+    const acrossFt = item.side === 'north'
+      ? -model.sidewalkWidthFt * 0.25
+      : model.roadWidthFt + model.sidewalkWidthFt * 0.25
+    boards.push({
+      stationFt: item.stationFt, acrossFt,
+      heightFt: item.heightFt,
+      widthFt: item.kind === 'shelter' ? 12 : item.kind === 'pole' ? 7 : item.fine ? 1.1 : 16,
+      liftFt: 0,
+      kind: item.kind === 'shelter' ? 'shelter' : item.kind === 'pole' ? 'pole' : 'lamp',
+      tint: item.fine ? 1 : 0,
+    })
+  }
+
+  // Whatever is left at the kerb.
+  for (const car of model.parked) {
+    const ahead = car.stationFt - px
+    if (ahead < 3 || ahead > VIEW_DISTANCE_FT * 0.4) continue
+    const bay = model.bands.find((b) => b.role === 'parking_bay')
+    if (!bay) break
+    const acrossFt = car.side === 'north' ? bay.fromFt + bay.widthFt / 2
+      : model.roadWidthFt - bay.widthFt / 2
+    boards.push({
+      stationFt: car.stationFt, acrossFt, heightFt: 5.1, widthFt: 6.4,
+      liftFt: 0, kind: 'car', tint: car.tint,
+    })
+  }
+
+  // A car waiting to come out of every driveway you pass.
+  for (const cut of model.curbCuts) {
+    const ahead = cut.stationFt - px
+    if (ahead < 6 || ahead > 420) continue
+    const acrossFt = cut.side === 'north'
+      ? -model.sidewalkWidthFt - 6
+      : model.roadWidthFt + model.sidewalkWidthFt + 6
+    boards.push({
+      stationFt: cut.stationFt, acrossFt, heightFt: 5, widthFt: 12,
+      liftFt: 0, kind: 'car', tint: 2,
+    })
   }
 
   boards.sort((a, b) => (b.stationFt - px) - (a.stationFt - px))
@@ -871,10 +951,35 @@ function billboardInk(board: Billboard, u: number, v: number, step: number): num
       if (v > 0.55 && v < 0.75 && (u < 0.14 || u > 0.86)) return ramp([P.lineWhite, P.lineYellow], step)
       return ramp(body, step)
     }
-    case 'pole':
-      return Math.abs(u - 0.5) < 0.2 ? ramp([P.woodMid, P.woodDark, P.shadow], step) : 0
-    case 'lamp':
-      return ramp([P.concreteMid, P.concreteDark, P.shadow], step)
+    case 'pole': {
+      // A timber pole with two crossarms on it. The crossarms are the reason
+      // undergrounding costs five million dollars and looks like nothing.
+      const wood = [P.woodMid, P.woodDark, P.shadow]
+      if (Math.abs(u - 0.5) < 0.09) return ramp(wood, step)
+      if (v > 0.08 && v < 0.115) return ramp(wood, step, 1)
+      if (v > 0.2 && v < 0.235) return ramp(wood, step, 1)
+      return 0
+    }
+    case 'lamp': {
+      const metal = [P.concreteMid, P.concreteDark, P.shadow]
+      if (board.tint > 0.5) {
+        // Pedestrian scale: a column with a lantern on top of it.
+        if (v < 0.1) return ramp([P.glassLit, P.lineWhite], step)
+        return ramp(metal, step, 1)
+      }
+      // A cobra head: a mast at the kerb with an arm out over the carriageway.
+      if (u > 0.9) return ramp(metal, step, 1)
+      if (v < 0.06 && u > 0.28) return ramp(metal, step)
+      if (v > 0.06 && v < 0.11 && u > 0.24 && u < 0.36) return ramp([P.glassLit, P.concreteLight], step)
+      return 0
+    }
+    case 'shelter': {
+      // A roof, two uprights and a glass back. Or, unupgraded, less of it.
+      if (v < 0.16) return ramp([P.concreteMid, P.concreteDark, P.shadow], step)
+      if (board.tint < 0.5 && v > 0.5) return 0
+      if (u < 0.08 || u > 0.92) return ramp([P.concreteDark, P.shadow], step)
+      return ramp([P.glassMid, P.glassDark, P.shadow], step)
+    }
     case 'person':
       return ramp([P.awningOrange, P.brickDark, P.shadow], step)
   }

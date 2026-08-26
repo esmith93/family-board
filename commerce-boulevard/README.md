@@ -22,7 +22,7 @@ argument exists before the pixels do.
 | 2 | Isometric renderer + procedural sprite factory | **done** |
 | 3 | Instruments UI + two-currency economy | **done** |
 | 4 | Year advance + newspaper generator | **done** |
-| 5 | Raycaster (drive) and side-scroll (walk) cameras | not started |
+| 5 | Raycaster (drive) and side-scroll (walk) cameras | **done** |
 | 6 | Web Audio synthesis | not started |
 | 7 | Ledger View reveal + year-30 scoring | not started |
 | 8 | Onboarding, tuning, polish | not started |
@@ -32,7 +32,7 @@ argument exists before the pixels do.
 ```bash
 npm install
 npm run dev       # the isometric view, at localhost:5173
-npm test          # 259 tests across the model, the renderer, the economy and the paper
+npm test          # 332 tests across the model, the renderers, the economy and the paper
 npm run model     # regenerate MODEL.md from the constant registry
 npm run sim       # play four scripted strategies and print thirty years of each
 npm run sweep     # compare strategies across thirteen generated corridors
@@ -40,7 +40,8 @@ npm run paper     # read thirty years of the Fairview Ledger at the terminal
 ```
 
 In the view: **drag** to pan, **wheel** to zoom, **space** to advance a year,
-**1–4** for day / dusk / night / overcast, **Q W E T** for the seasons.
+**1–4** for day / dusk / night / overcast, **Q W E T** for the seasons, **V** to
+drive the corridor and **B** to walk it.
 Instruments are in the dock at the bottom; the caret at its right collapses it.
 
 Pin a corridor with `?seed=fairview` if you want the same one twice.
@@ -73,9 +74,10 @@ src/ui/             The chrome: instruments, the two currencies, the cold open.
   app.ts            Meters, tabs, cards, the commit rail, the year advance.
   opening.ts        The budget, the job, and the ninety-ten offer.
   newspaper.ts      Setting the front page, and screening the photograph.
+  camera.ts         Getting into the car, and getting out and walking.
   why.ts            "Why this number?" - provenance for any figure on screen.
   format.ts         How money and durations are written.
-src/render/         The isometric view. No image assets anywhere.
+src/render/         The three views. No image assets anywhere.
   palette.ts        Thirty-two colours, and the light and season lookup tables.
   bitmap.ts         A rasteriser that writes palette INDICES, not colours.
   iso.ts            Projection, camera, culling.
@@ -85,6 +87,10 @@ src/render/         The isometric view. No image assets anywhere.
   scene.ts          SimState in, drawable world out.
   renderer.ts       Painter order, light pools, moving traffic.
   photo.ts          The newsprint dot screen, for the paper's photograph.
+  corridor.ts       The corridor as a line, measured in feet from the west end.
+  firstperson.ts    The plan both first-person cameras stand on, and the ray cast.
+  drive.ts          The view from the driver's seat.
+  walk.ts           The view from the pavement.
 MODEL.md            Generated from constants.ts. Do not edit by hand.
 tools/              Scripts for playing the model from the command line.
 ```
@@ -183,6 +189,38 @@ These are enforced by tests, not by good intentions:
   year other than the one the issue is dated. That last rule is the important
   one. A paper that can write "since the 2003 widening" has a memory, and if the
   paper has a memory the player never has to build one.
+
+## Getting out of the office
+
+Two of the three views are at eye level, and both are the same street the
+isometric view is: a ray caster over an occupancy grid stamped out of the
+parcels, so the buildings stand where their setbacks put them and the signal
+you see from above is the signal you stop at.
+
+**Drive it.** Calibrated against the simulation rather than guessed: across
+thirteen corridors the drive journeys within about a tenth of the speed the
+model says the corridor journeys at. Three things are unmistakable from the
+seat. The widening genuinely works — years four to eight it is faster than the
+corridor that was left alone, and by year twenty it is not, because fifteen
+thousand more vehicles a day are on it. Signal progression is the clearest
+instrument in the game that can be felt rather than read: a coordinated
+corridor drives about a third faster, and coordination means a COMMON cycle, so
+uncoordinated signals run on their own clocks and beat against each other.
+And deferred resurfacing is invisible on a budget line and unmistakable through
+a steering wheel.
+
+**Walk it.** The read-out is four numbers: elapsed, miles, waiting, and how far
+it is to somewhere you are allowed to cross. On the corridor as it stands that
+last number goes past six hundred feet. Crossing where there is no crossing is
+gap acceptance, not a die roll: headways are exponential, so the chance a gap
+is open now is exp(−flow × the time you need), and you need one in each half of
+the road. On six lanes at the peak that is about one chance in a million per
+second, which is the right answer. A raised or planted median is the difference
+between needing two unlikely things at once and needing them one at a time.
+
+Neither view says anything. There is a speedometer, a trip clock and an
+odometer, because that is what a car has, and on foot a clock and a distance.
+None of them is an opinion.
 
 ## The paper
 

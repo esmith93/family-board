@@ -38,6 +38,8 @@ export function initialStreet(): StreetState {
     signalPolicy: 'vehicle_progression',
     median: 'twltl',
     treesPerMilePerSide: 8,
+    // Planted when the boulevard was built, and never added to since.
+    treePlantings: [{ year: -34, perMilePerSide: 8 }],
     lighting: 'cobra_highmast',
     busLane: false,
     transitBusesPerHour: 1,
