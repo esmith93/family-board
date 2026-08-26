@@ -294,6 +294,67 @@
     border-radius: 3px; background: color-mix(in srgb, var(--panel) 92%, transparent); }
   #getout button:hover { color: var(--ink); border-color: var(--accent); }
   body.intro #getout, body.advancing #getout { display: none; }
+
+  /* --- The Ledger View and the reckoning ------------------------------- */
+  #ledgerbar { position: fixed; top: 78px; left: 10px; z-index: 6; max-width: 340px;
+    padding: 12px 15px; display: none; }
+  body.ledger #ledgerbar { display: block; }
+  #ledgerbar h4 { margin: 0 0 8px; font-size: 10px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--faint); }
+  #ledgerbar .big { font-size: 22px; color: var(--ink); letter-spacing: -0.02em; }
+  #ledgerbar .big span { font-size: 11px; color: var(--muted); letter-spacing: 0; }
+  #ledgerbar dl { display: grid; grid-template-columns: 1fr auto; gap: 3px 14px;
+    margin: 10px 0 0; font-size: 12px; }
+  #ledgerbar dt { color: var(--muted); }
+  #ledgerbar dd { margin: 0; text-align: right; color: var(--ink-dim); }
+  #ledgerbar .key { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line);
+    font-size: 11px; color: var(--muted); line-height: 1.55; }
+  #ledgerbar .key b { color: var(--ink-dim); font-weight: 500; }
+
+  /* Block, not flex. `.veil` centres its child, and a flex container that
+     centres a child taller than itself pushes the child's top out of the
+     scrollable area where nothing can reach it. */
+  #reckveil { position: fixed; inset: 0; background: rgba(8, 9, 13, 0.94); z-index: 32;
+    display: block; overflow-y: auto; padding: 0; }
+  #reckveil.hidden { display: none; }
+  #reckoning { max-width: 780px; margin: 40px auto 60px; padding: 32px 38px 40px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 4px; }
+  #reckoning h2 { margin: 0 0 22px; font-size: 26px; color: var(--ink); letter-spacing: -0.02em; }
+  #reckoning h3 { margin: 30px 0 10px; font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--accent); }
+  #reckoning .kicker { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--faint); margin-bottom: 12px; }
+
+  /* Two numbers, side by side, and nothing between them but the space. */
+  #reckoning .reach { display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: var(--line); border: 1px solid var(--line); border-radius: 3px; margin: 6px 0 4px; }
+  #reckoning .reach > div { background: var(--panel-2); padding: 20px 22px; }
+  #reckoning .reach b { display: block; font-size: 34px; color: var(--ink);
+    letter-spacing: -0.03em; line-height: 1.1; }
+  #reckoning .reach span { display: block; margin-top: 6px; font-size: 12px; color: var(--muted);
+    line-height: 1.5; }
+
+  table.reck { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.reck thead th { font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--faint); font-weight: 400; text-align: right; padding: 0 0 6px 18px;
+    white-space: nowrap; }
+  table.reck thead th:first-child { text-align: left; padding-left: 0; }
+  table.reck tbody th { text-align: left; font-weight: 400; color: var(--ink-dim);
+    padding: 7px 12px 7px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  table.reck tbody th .note { display: block; font-size: 11px; color: var(--faint);
+    margin-top: 2px; line-height: 1.45; }
+  table.reck td { text-align: right; padding: 7px 0 7px 16px; border-top: 1px solid var(--line);
+    white-space: nowrap; vertical-align: top; font-variant-numeric: tabular-nums; }
+  table.reck td.then { color: var(--muted); }
+  table.reck td.now { color: var(--ink); }
+  table.reck td.total { color: var(--ink-dim); }
+  table.reck .unit { font-size: 10px; color: var(--faint); margin-left: 2px; }
+
+  #reckoning ol.vocab { margin: 0; padding: 0; list-style: none; }
+  #reckoning ol.vocab li { padding: 7px 0; border-top: 1px solid var(--line);
+    font-size: 13px; color: var(--ink-dim); }
+  #reckoning ol.vocab b { color: var(--muted); font-weight: 400; margin-right: 12px;
+    font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -322,9 +383,14 @@
 
 <div id="hint"></div>
 
+<div class="panel" id="ledgerbar"></div>
+
+<div class="veil hidden" id="reckveil"><div id="reckoning"></div></div>
+
 <div id="getout">
   <button id="godrive">Drive it</button>
   <button id="gowalk">Walk it</button>
+  <button id="goledger" hidden>Ledger</button>
 </div>
 
 <div id="fp" class="hidden">

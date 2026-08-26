@@ -17,10 +17,12 @@ import { IsometricRenderer } from '../render/renderer'
 import type { LightName, SeasonName } from '../render/palette'
 import { duration, escapeHtml, money, percent } from './format'
 import { initWhy, showWhy } from './why'
-import { hideModal, runOpening, showEnding } from './opening'
+import { hideModal, runOpening } from './opening'
 import { showFrontPage } from './newspaper'
 import { FirstPerson } from './camera'
 import { Sound } from '../audio/sound'
+import { showReckoning } from './reckoning'
+import { buildLedgerScene, ledgerSummary } from '../render/ledger'
 import { observe } from '../paper/observation'
 import { circumstanceOf, newMemory, type PaperMemory } from '../paper/residents'
 import { composeFrontPage } from '../paper/paper'
@@ -77,6 +79,7 @@ export class Game {
   private skipped = false
   private memory: PaperMemory
   private sceneId = 0
+  private ledgerOpen = false
   private readonly sound = new Sound()
   private readonly firstPerson = new FirstPerson(this.sound)
 
@@ -93,8 +96,9 @@ export class Game {
     this.renderer.lookAt(0.5, 0)
     this.renderer.camera.gy = 38
     this.renderAll()
-    const skipTo = Number(new URLSearchParams(window.location.search).get('ff') ?? 0)
-    if (import.meta.env.DEV && skipTo > 0) this.fastForward(skipTo)
+    const query = new URLSearchParams(window.location.search)
+    const skipTo = Number(query.get('ff') ?? 0)
+    if (import.meta.env.DEV && skipTo > 0) this.fastForward(skipTo, query.get('plan'))
     else void this.open()
     requestAnimationFrame((t) => this.frame(t))
   }
@@ -115,11 +119,14 @@ export class Game {
    * through thirty years of it. Development only - the query string does
    * nothing in a built game.
    */
-  private fastForward(years: number): void {
+  private fastForward(years: number, plan: string | null = null): void {
     this.started = true
+    const script = plan === 'nothing' ? {}
+      : plan === 'widen' ? { 0: ['capital.state_widening'] } as Record<number, string[]>
+        : DEV_PLAN
     for (let y = 0; y < years && !this.state.ended; y++) {
       const before = cityShortfall(this.state)
-      this.state = advanceYear(this.state, DEV_PLAN[this.state.year] ?? []).state
+      this.state = advanceYear(this.state, script[this.state.year] ?? []).state
       // Run the paper too, so its memory - who has written in, what it has
       // already printed, whether it has come round - is where it should be.
       const frozen = this.state
@@ -130,10 +137,14 @@ export class Game {
     }
     this.refreshScene()
     this.renderAll()
+    // A run that ended during the skip still ended, and still has a reckoning.
+    if (this.state.ended) this.finish()
   }
 
   private restart(): void {
     this.state = newGame(seedForToday())
+    this.ledgerOpen = false
+    document.body.classList.remove('ledger')
     this.memory = newMemory(this.state)
     this.selected.clear()
     this.started = false
@@ -187,7 +198,7 @@ export class Game {
       this.showGlossary(String(unlocked[0]!.detail.card))
       return
     }
-    if (this.state.ended) showEnding(this.state, () => this.restart())
+    if (this.state.ended) this.finish()
   }
 
   /**
@@ -229,6 +240,15 @@ export class Game {
     })
   }
 
+  /** Thirty years, or the day the council ran out of patience. */
+  private finish(): void {
+    this.sound.hush(true)
+    showReckoning(this.state, () => {
+      this.sound.hush(false)
+      this.restart()
+    })
+  }
+
   private showGlossary(id: string): void {
     const card = cardById(id)
     if (!card) return
@@ -241,15 +261,64 @@ export class Game {
     el('modal').classList.remove('hidden')
     el('gok').addEventListener('click', () => {
       hideModal()
-      if (this.state.ended) showEnding(this.state, () => this.restart())
+      if (this.state.ended) this.finish()
     })
   }
 
   // --- Rendering the world -------------------------------------------------
 
   private refreshScene(): void {
-    this.renderer.setScene(buildScene(this.state))
+    this.renderer.setScene(this.ledgerOpen ? buildLedgerScene(this.state) : buildScene(this.state))
     this.sceneId++
+  }
+
+  /**
+   * The Ledger View.
+   *
+   * Locked until the player has already hit the wall, because the point of it
+   * is not to teach the arithmetic in advance - it is to explain a bill that
+   * has already arrived. `maybeUnlockLedger` in the simulation decides when.
+   */
+  private toggleLedger(): void {
+    if (!this.state.ledgerUnlocked || !this.started || this.advancing) return
+    this.ledgerOpen = !this.ledgerOpen
+    document.body.classList.toggle('ledger', this.ledgerOpen)
+    if (!this.ledgerOpen) {
+      this.renderer.camera.zoom = 0.55
+      this.renderer.lookAt(0.5, 38)
+      this.renderer.camera.gy = 38
+    }
+    if (this.ledgerOpen) {
+      // Stand back. A column at a time says nothing; the shape of the whole
+      // mile is the finding.
+      this.renderer.camera.zoom = 0.17
+      this.renderer.lookAt(0.5, 38)
+      this.renderer.camera.gy = 38
+    }
+    this.refreshScene()
+    this.renderLedgerBar()
+    this.renderLedgerButton()
+  }
+
+  private renderLedgerBar(): void {
+    if (!this.ledgerOpen) return
+    const account = ledgerSummary(this.state)
+    el('ledgerbar').innerHTML = `
+      <h4>Commerce Boulevard, year ${this.state.year}</h4>
+      <div class="big">${money(account.revenuePerAcre)} <span>per acre, a year</span></div>
+      <dl>
+        <dt>What it costs to serve an acre</dt><dd>${money(account.liabilityPerAcre)}</dd>
+        <dt>Revenue divided by cost</dt><dd>${account.ratio.toFixed(2)}&times;</dd>
+        <dt>Parcels covering their own cost</dt>
+        <dd>${account.payingParcels} of ${account.taxableParcels}</dd>
+        <dt>Land under surface parking</dt><dd>${percent(account.parkingShare, 0)}</dd>
+      </dl>
+      <div class="key">
+        Each block is what that parcel pays the city per acre.
+        The <b>white line</b> is what the city spends per acre to serve it.
+        A parcel with nothing above its line is not drawn short of anything;
+        parks and schools carry no line, since they were never on the roll.
+      </div>`
   }
 
   private fit(): void {
@@ -296,6 +365,8 @@ export class Game {
     this.renderCards()
     this.renderCommit()
     this.renderWorks()
+    this.renderLedgerButton()
+    this.renderLedgerBar()
     this.renderHint()
   }
 
@@ -515,6 +586,17 @@ export class Game {
           <div class="y">${money(o.annualCost)} / year</div></div>`).join('')}` : ''}`
   }
 
+  /**
+   * The Ledger button appears the year the simulation unlocks it, which is
+   * the year the player has already hit the wall. Nothing announces it as a
+   * reward; it is simply there, the way a file you were not shown is there.
+   */
+  private renderLedgerButton(): void {
+    const button = el<HTMLButtonElement>('goledger')
+    button.hidden = !this.state.ledgerUnlocked
+    button.textContent = this.ledgerOpen ? 'Back to the street' : 'Ledger'
+  }
+
   private renderHint(): void {
     const s = this.state
     const hint = s.ledgerUnlocked
@@ -523,7 +605,8 @@ export class Game {
         : `${percent(s.modeShare.walk, 1)} of trips on foot &middot; ${Math.round(s.traffic.peakSpeedMph)} mph at the peak &middot; ${Math.round(s.environment.sidewalkNoiseDba)} dBA at the kerb`
     el('hint').innerHTML = `<b>drag</b> pan &middot; <b>wheel</b> zoom &middot; <b>1&ndash;4</b> light &middot; `
       + `<b>Q W E T</b> season &middot; <b>V</b> drive &middot; <b>B</b> walk &middot; `
-      + `<b>M</b> sound ${this.sound.isOn ? 'on' : 'off'} &nbsp;&nbsp; ${hint}`
+      + `<b>M</b> sound ${this.sound.isOn ? 'on' : 'off'}`
+      + `${this.state.ledgerUnlocked ? ' &middot; <b>L</b> ledger' : ''} &nbsp;&nbsp; ${hint}`
   }
 
   // --- Input ---------------------------------------------------------------
@@ -576,8 +659,10 @@ export class Game {
       if (key === 'v') { this.getOut('drive'); return }
       if (key === 'b') { this.getOut('walk'); return }
       if (key === 'm') { this.sound.toggle(); this.renderHint(); return }
+      if (key === 'l') { this.toggleLedger(); return }
       if (SEASONS[key]) { this.renderer.setSeason(SEASONS[key]!); this.refreshScene() }
     })
+    el('goledger').addEventListener('click', () => this.toggleLedger())
     el('godrive').addEventListener('click', () => this.getOut('drive'))
     el('gowalk').addEventListener('click', () => this.getOut('walk'))
   }

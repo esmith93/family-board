@@ -11,6 +11,7 @@
 import { C } from '../sim/constants'
 import { profileFor } from '../sim/landuse'
 import { crossingDistanceFt } from '../sim/traffic'
+import type { LedgerColumn } from './ledger'
 import { crossingsOf, junctionsOf, roadBands } from './corridor'
 import { makeRng } from '../sim/rng'
 import type { Parcel, SimState, StreetState } from '../sim/types'
@@ -81,6 +82,13 @@ export interface Scene {
   walkShare: number
   busesPerHour: number
   year: number
+  /**
+   * Set only in the Ledger View: the corridor's accounts, standing where the
+   * buildings stand. When it is present the renderer draws these instead of
+   * the buildings and the street furniture, because the point of that screen
+   * is the arithmetic and not the shopfronts.
+   */
+  ledger?: LedgerColumn[]
 }
 
 /** Depth of each parcel row, in feet. */

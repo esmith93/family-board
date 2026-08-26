@@ -16,6 +16,7 @@ import {
   asphaltSurface, concreteSurface, dirtSurface, grassSurface, parkingLotTile, plazaSurface, roadTile,
 } from './sprites/ground'
 import { buildingWithShadow, type Sprite } from './sprites/buildings'
+import { valueColumn } from './sprites/ledger'
 import {
   benchSprite, busShelterSprite, busSprite, carSprite, cobraLightSprite, hydrantSprite,
   lightPoolSprite, pedestrianLightSprite, personSprite, trafficSignalSprite, treeSprite,
@@ -137,6 +138,35 @@ export class IsometricRenderer {
 
     // Everything that does not move, sorted once into painter order.
     const items: DrawItem[] = []
+
+    /*
+     * The Ledger View swaps the corridor's buildings for its accounts. Same
+     * ground, same road, same painter order - what changes is that every
+     * parcel is now as tall as it pays. Nothing else in the renderer knows
+     * about it, because it is the same machinery drawing different boxes.
+     */
+    if (scene.ledger) {
+      for (const column of scene.ledger) {
+        const key = `L:${Math.round(column.revenuePx)}:${Math.round(column.liabilityPx)}`
+          + `:${column.footprintW}x${column.footprintD}:${column.exempt ? 1 : 0}`
+        items.push({
+          depth: (column.gx + column.footprintW - 1) + (column.gy + column.footprintD - 1),
+          gx: column.gx, gy: column.gy, key, lift: 0,
+          make: () => valueColumn({
+            footprintW: column.footprintW,
+            footprintD: column.footprintD,
+            revenuePx: column.revenuePx,
+            liabilityPx: column.liabilityPx,
+            exempt: column.exempt,
+          }),
+        })
+      }
+      items.sort((a, b) => a.depth - b.depth || a.gy - b.gy)
+      this.statics = items
+      this.lamps = []
+      return
+    }
+
     for (const b of scene.buildings) {
       const key = `b:${b.use}:${b.footprintW}x${b.footprintD}:${b.floors}:${b.seed & 0xff}:${Math.round(b.condition * 4)}`
       items.push({
@@ -194,8 +224,13 @@ export class IsometricRenderer {
     this.clampCamera()
   }
 
+  /**
+   * The floor is lower than the street view needs because the Ledger View has
+   * to hold a mile of corridor in one frame: a column at a time says nothing,
+   * and the shape of the whole street is the finding.
+   */
   zoomBy(factor: number): void {
-    this.camera.zoom = Math.max(0.35, Math.min(3, this.camera.zoom * factor))
+    this.camera.zoom = Math.max(0.12, Math.min(3, this.camera.zoom * factor))
   }
 
   private clampCamera(): void {

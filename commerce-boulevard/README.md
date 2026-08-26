@@ -11,7 +11,7 @@ Nobody will tell you what to do about it.
 
 ---
 
-## Status: phases 1 to 4 complete
+## Status: phases 1 to 7 complete
 
 The build order puts the simulation first, headless and tested, so that the
 argument exists before the pixels do.
@@ -24,7 +24,7 @@ argument exists before the pixels do.
 | 4 | Year advance + newspaper generator | **done** |
 | 5 | Raycaster (drive) and side-scroll (walk) cameras | **done** |
 | 6 | Web Audio synthesis | **done** |
-| 7 | Ledger View reveal + year-30 scoring | not started |
+| 7 | Ledger View reveal + year-30 reckoning | **done** |
 | 8 | Onboarding, tuning, polish | not started |
 
 ## Running it
@@ -32,7 +32,7 @@ argument exists before the pixels do.
 ```bash
 npm install
 npm run dev       # the isometric view, at localhost:5173
-npm test          # 384 tests across the model, the renderers, the economy, the paper and the sound
+npm test          # 414 tests across the model, the renderers, the economy, the paper and the sound
 npm run model     # regenerate MODEL.md from the constant registry
 npm run sim       # play four scripted strategies and print thirty years of each
 npm run sweep     # compare strategies across thirteen generated corridors
@@ -42,7 +42,8 @@ npm run audio     # render the synthesiser offline and check it against the mode
 
 In the view: **drag** to pan, **wheel** to zoom, **space** to advance a year,
 **1–4** for day / dusk / night / overcast, **Q W E T** for the seasons, **V** to
-drive the corridor, **B** to walk it and **M** for sound.
+drive the corridor, **B** to walk it, **L** for the Ledger View and **M** for
+sound.
 Instruments are in the dock at the bottom; the caret at its right collapses it.
 
 Pin a corridor with `?seed=fairview` if you want the same one twice.
@@ -65,6 +66,7 @@ src/sim/            The simulation. Pure, headless, deterministic, no DOM.
   instruments.ts    What the player can do, and what it costs.
   glossary.ts       Vocabulary the player earns by causing the thing.
   step.ts           One year of Fairview.
+  reckoning.ts      Thirty years, reported. It does not grade.
 src/paper/          The Fairview Ledger. A character, not a narrator.
   observation.ts    The only thing the paper is allowed to know.
   residents.ts      Six regulars, matched to real households.
@@ -77,17 +79,19 @@ src/ui/             The chrome: instruments, the two currencies, the cold open.
   newspaper.ts      Setting the front page, and screening the photograph.
   camera.ts         Getting into the car, and getting out and walking.
   why.ts            "Why this number?" - provenance for any figure on screen.
+  reckoning.ts      The closing document, and the button that starts it again.
   format.ts         How money and durations are written.
 src/audio/          What the corridor sounds like. No audio assets anywhere.
   mix.ts            Sim state in, decibels and hertz out. No Web Audio in it.
   synth.ts          Filtered noise and two oscillators, and nothing else.
   sound.ts          The one thing that owns an AudioContext.
   stub-context.ts   A recording stand-in, so the graph can be tested headless.
-src/render/         The three views. No image assets anywhere.
+src/render/         The four views. No image assets anywhere.
   palette.ts        Thirty-two colours, and the light and season lookup tables.
   bitmap.ts         A rasteriser that writes palette INDICES, not colours.
   iso.ts            Projection, camera, culling.
   sprites/          Ground, roadway, buildings, street furniture, vehicles.
+  sprites/ledger.ts A parcel's revenue and its liability, as one column.
   chunks.ts         Ground baked in blocks, because draw calls are the cost.
   cache.ts          Sprite drawn once; painted once per palette variant.
   scene.ts          SimState in, drawable world out.
@@ -97,6 +101,7 @@ src/render/         The three views. No image assets anywhere.
   firstperson.ts    The plan both first-person cameras stand on, and the ray cast.
   drive.ts          The view from the driver's seat.
   walk.ts           The view from the pavement.
+  ledger.ts         The same corridor, drawn as money instead of buildings.
 MODEL.md            Generated from constants.ts. Do not edit by hand.
 tools/              Scripts for playing the model from the command line.
 ```
@@ -198,7 +203,7 @@ These are enforced by tests, not by good intentions:
 
 ## Getting out of the office
 
-Two of the three views are at eye level, and both are the same street the
+Two of the four views are at eye level, and both are the same street the
 isometric view is: a ray caster over an occupancy grid stamped out of the
 parcels, so the buildings stand where their setbacks put them and the signal
 you see from above is the signal you stop at.
@@ -263,6 +268,58 @@ Three things fall out of that without anybody deciding them:
 A car is a box that takes about twenty-four decibels off everything outside it
 and replaces them with the surface under the wheels. Which is why a corridor
 can be unbearable to stand beside and perfectly pleasant to drive.
+
+## What the parcels are worth
+
+There is a fourth view, and it is the same street again. Press **L** and the
+buildings are replaced by columns, one per parcel, on the ground the parcel
+actually occupies. The solid part of a column is what that parcel yields the
+city per acre per year. The white wireframe cage around it is what the city owes
+per acre per year to keep the pipes, the pavement and the road in front of it —
+frontage feet plus a share of the local streets that only exist to serve it. A
+parcel that pays its way fills its cage. A parcel that does not is a short solid
+block standing inside a tall empty one, and the empty part is the gap.
+
+Nothing on the screen says which of those is good. The big-box anchor with two
+hundred spaces returns about six times what an acre of it costs to serve, and
+the surface car park beside it returns a tenth, and the corridor is mostly the
+second thing. The player is left to notice that the two facts are related,
+because they are standing on the same block.
+
+The view is not available from year one. It unlocks when the city's own numbers
+force the question — when the corridor's shortfall has been on the books long
+enough that somebody would have gone looking. On a corridor that was widened
+that lands around year eight, on one left alone around year fourteen, and on one
+played well it may not arrive until year twenty-six, because there was never a
+hole to explain. Arriving late is worse, not better: the view is most useful
+exactly when there is still time to act on it.
+
+The columns and the closing document read the same function, so the Ledger View
+and the reckoning cannot disagree about a single dollar.
+
+## Thirty years
+
+The run ends three ways: thirty years elapse, the council replaces you, or
+Fairview goes into state financial oversight. All three open the same document.
+
+It has five sections — the money, the street, the people, the ambulance, getting
+about — and each row carries year one, the year you finished, and the thirty-year
+total where a total means anything. It reports. It does not score, rank, grade,
+or award. There is no number at the bottom that says how you did, because the
+whole game is an argument that such a number is what got Fairview into this.
+
+Two figures sit side by side near the top: the share of households within a
+fifteen-minute walk of a grocery, and the share of trips actually made on foot.
+On the corridor as inherited those read something like 78% and 19%. Neither is
+commentary. The gap between them is the entire subject of the game, stated as
+two numbers and left alone.
+
+The last section is a list of the vocabulary you unlocked and the year you
+unlocked it, in the order you caused each phenomenon. On a bad run it reads
+*Year 1 stroad, Year 10 walkability, Year 14 value per acre*, which is a
+sentence about what you had to break before anyone would name it. A test scans
+the whole document for advocacy language, the same scan the instrument cards
+face.
 
 ## The paper
 
