@@ -351,7 +351,11 @@ export const STORIES: readonly Template[] = [
     weight: () => 21,
     build: () => ({
       headline: 'What happened to Commerce Boulevard?',
-      subhead: 'The street nobody wanted to be on has become the one everybody meets on',
+      // The reporter's own count, not the reporter's conclusion. The body
+      // below is exactly right - three parties with three explanations and
+      // a desk that cannot pick between them - and this line used to reach
+      // over it and reason about what the corridor had become.
+      subhead: 'This reporter counted more people on the pavement than cars at the lights',
       body: 'This reporter walked the length of the corridor on a Thursday evening and counted more '
         + 'people on the pavement than cars at the lights. Traders put it down to the new units. '
         + 'Residents put it down to the trees. The city, asked what had changed, said a number of '

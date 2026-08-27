@@ -114,7 +114,7 @@ function grantScreen(state: SimState, onDecide: (accept: boolean) => void): void
       <dt>Added by this project</dt><dd>${addedLaneMiles.toFixed(1)} lane-miles</dd>
       <dt>Added annual obligation</dt><dd>${money(annual)} / year, permanent</dd>
     </dl>
-    <p class="fine">Construction: three seasons. No council vote is required to accept a
+    <p class="fine">Construction: one season. No council vote is required to accept a
     state grant, so this costs you nothing politically.
     <button class="why" id="grantwhy" style="border-bottom:1px dotted currentColor">Why these numbers?</button></p>
     <div class="actions">
@@ -133,6 +133,30 @@ function grantScreen(state: SimState, onDecide: (accept: boolean) => void): void
   document.getElementById('decline')?.addEventListener('click', () => onDecide(false))
 }
 
+/**
+ * A run left open in another sitting.
+ *
+ * This comes before the budget, and only for somebody who has a run to come
+ * back to - a first-time player never sees it, so the cold open stays cold.
+ * It says what year it is and nothing else. There is no summary of how it was
+ * going, because a summary of how it was going is a verdict on how it was
+ * going.
+ */
+export function offerToResume(year: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    show(`
+      <div class="kicker">Commerce Boulevard</div>
+      <h2>You were part-way through.</h2>
+      <p>A run is open at year ${year} of thirty.</p>
+      <div class="actions">
+        <button id="fresh">Start a new corridor</button>
+        <button class="primary" id="carry">Carry on</button>
+      </div>`)
+    document.getElementById('carry')?.addEventListener('click', () => { hideModal(); resolve(true) })
+    document.getElementById('fresh')?.addEventListener('click', () => resolve(false))
+  })
+}
+
 /** Run the cold open. Resolves with whether the player took the grant. */
 export function runOpening(state: SimState): Promise<boolean> {
   return new Promise((resolve) => {
@@ -141,29 +165,4 @@ export function runOpening(state: SimState): Promise<boolean> {
       resolve(accept)
     })))
   })
-}
-
-/** The end of a run, however it ended. */
-export function showEnding(state: SimState, onRestart: () => void): void {
-  const reason = state.ended?.reason ?? 'completed'
-  const headline = reason === 'fired'
-    ? 'The council has thanked you for your service.'
-    : reason === 'insolvent'
-      ? 'Fairview has entered state financial oversight.'
-      : 'Thirty years.'
-  const kicker = reason === 'completed' ? 'Year 30' : `Year ${state.ended?.year ?? state.year}`
-
-  show(`
-    <div class="kicker">${kicker}</div>
-    <h2>${headline}</h2>
-    <p class="fine">The full reckoning arrives in a later phase. For now, the figures the
-    game has been keeping without showing you:</p>
-    <dl>
-      <dt>Revenue per acre</dt><dd>${money(state.fiscal.revenuePerAcre)}</dd>
-      <dt>Infrastructure liability per acre</dt><dd>${money(state.fiscal.liabilityPerAcre)}</dd>
-      <dt>Outstanding debt</dt><dd>${money(state.fiscal.debt)}</dd>
-      <dt>Residents who moved away</dt><dd>${state.residentsLeft.toLocaleString('en-US')}</dd>
-    </dl>
-    <div class="actions"><button class="primary" id="again">Start again</button></div>`)
-  document.getElementById('again')?.addEventListener('click', () => { hideModal(); onRestart() })
 }

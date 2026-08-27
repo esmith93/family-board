@@ -198,3 +198,66 @@ describe('the scene carries the model into the picture', () => {
     }
   })
 })
+
+/**
+ * Three instruments that worked in the model and moved nothing on screen.
+ *
+ * That is the exact failure this file exists to catch: a player buys a thing,
+ * the numbers shift, and the street looks identical, so the only way to know
+ * anything happened is to read a spreadsheet. These hold the three that had
+ * slipped through.
+ */
+describe('what the corridor looks like when the player changes it', () => {
+  const tilesAt = (state: SimState, sort: string): number =>
+    buildScene(state).tiles.filter((t) => t.kind.sort === sort).length
+  /**
+   * Cars at the KERB, not cars on a lot. The parcels are full of parked cars
+   * whatever the street does, and counting those would hide the answer.
+   */
+  const parkedAtTheKerb = (state: SimState): number => {
+    const bays = new Set(
+      layoutFor(state.street).roadRows.filter((r) => r.role === 'parking_bay').map((r) => r.gy))
+    return buildScene(state).props
+      .filter((p) => p.kind === 'parked_car' && bays.has(p.gy)).length
+  }
+
+  it('paves a block that has been closed to through traffic', () => {
+    const before = tilesAt(base, 'plaza')
+    const closed = variant((s) => { s.street.plazaSegments = [6] })
+    expect(tilesAt(closed, 'plaza')).toBeGreaterThan(before)
+
+    // And it is the carriageway that went, not something borrowed from a verge.
+    expect(tilesAt(closed, 'road')).toBeLessThan(tilesAt(base, 'road'))
+  })
+
+  it('stands the footway in the parking bay where there are kerb extensions', () => {
+    const withParking = variant((s) => { s.street.onStreetParking = 'free' })
+    const built = variant((s) => {
+      s.street.onStreetParking = 'free'
+      s.street.bulbOuts = true
+    })
+    expect(tilesAt(built, 'walk')).toBeGreaterThan(tilesAt(withParking, 'walk'))
+    expect(tilesAt(built, 'road')).toBeLessThan(tilesAt(withParking, 'road'))
+  })
+
+  it('clears the cars back from every corner when the crossings are daylighted', () => {
+    const withParking = variant((s) => { s.street.onStreetParking = 'free' })
+    const cleared = variant((s) => {
+      s.street.onStreetParking = 'free'
+      s.street.daylighting = true
+    })
+    expect(parkedAtTheKerb(cleared)).toBeLessThan(parkedAtTheKerb(withParking))
+    expect(parkedAtTheKerb(cleared)).toBeGreaterThan(0)
+  })
+
+  it('empties the kerb when the bays are metered, and clears it when they go', () => {
+    const free = variant((s) => { s.street.onStreetParking = 'free' })
+    const priced = variant((s) => {
+      s.street.onStreetParking = 'metered'
+      s.street.meterPricePerHour = 3
+    })
+    const gone = variant((s) => { s.street.onStreetParking = 'none' })
+    expect(parkedAtTheKerb(priced)).toBeLessThan(parkedAtTheKerb(free))
+    expect(parkedAtTheKerb(gone)).toBe(0)
+  })
+})

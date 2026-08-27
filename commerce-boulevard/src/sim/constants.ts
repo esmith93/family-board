@@ -337,7 +337,7 @@ const geometry = defineConstants({
     label: 'Opening general fund shortfall',
     value: 4100000, unit: 'dollars per year', low: 4100000, high: 4100000,
     source: S.design, confidence: 'settled',
-    note: 'The number on screen in the first ten seconds. Everything else follows from it.',
+    note: 'The adopted general fund is short by this much before anything on Commerce Boulevard has been decided.',
   },
   SERVICE_AREA_HOUSEHOLDS: {
     label: 'Households the corridor serves',
@@ -476,13 +476,13 @@ const landValue = defineConstants({
     label: 'Effective property tax rate, residential, all jurisdictions',
     value: 0.0122, unit: 'fraction of market value per year', low: 0.003, high: 0.032,
     source: S.lincoln50State, confidence: 'contextual',
-    note: 'Lower than commercial in most states - a classification difference that quietly subsidises detached housing.',
+    note: 'Lower than the commercial rate in most states. The gap is a classification difference, not a difference in assessed value.',
   },
   CITY_SHARE_OF_PROPERTY_LEVY: {
     label: 'City share of the total property tax levy',
     value: 0.32, unit: 'fraction', low: 0.15, high: 0.6,
     source: S.design, confidence: 'contextual',
-    note: 'Schools and the county take most of it. The city carries the road but collects a third of the tax - which is why the corridor ledger is so unforgiving.',
+    note: 'Schools and the county take most of it. The city maintains the roadway and collects about a third of the levy raised on the land beside it.',
   },
   LOCAL_SALES_TAX_SHARE: {
     label: 'Local share of sales tax',
@@ -623,11 +623,17 @@ const liability = defineConstants({
     source: S.fhwaThinOverlay, confidence: 'contextual',
     note: 'Deferring it is cheap for about five years and then very expensive, because the base starts to fail.',
   },
+  EMERGENCY_RECONSTRUCTION_PREMIUM: {
+    label: 'Cost multiplier on a reconstruction the city did not plan',
+    value: 1.45, unit: 'multiple of the planned cost', low: 1.2, high: 1.9,
+    source: S.design, confidence: 'contextual',
+    note: 'Emergency mobilisation, a shorter tender list and work sequenced around a failed base rather than a programme. Without a premium, letting the road fail was measurably cheaper than resurfacing it on time, which is the opposite of the thing being modelled.',
+  },
   PAVEMENT_RECONSTRUCT_CYCLE_YEARS: {
     label: 'Reconstruction cycle',
     value: 25, unit: 'years', low: 20, high: 40,
     source: S.arvadaPavement, confidence: 'contested',
-    note: 'Shorter than most cities budget for. The obligation the state DOT grant hands the city, and the one nobody funds.',
+    note: 'Shorter than most cities budget for. A reconstruction rebuilds the roadway to full depth including the base and the drainage; a resurfacing does not.',
   },
   WATER_MAIN_REPLACE_COST_PER_FT: {
     label: 'Water main replacement cost',
@@ -705,13 +711,13 @@ const liability = defineConstants({
     label: 'Years to useful canopy',
     value: 15, unit: 'years', low: 10, high: 25,
     source: S.design, confidence: 'contextual',
-    note: 'The longest lag in the game. A tree planted in year 25 does nothing for the player, and that is the honest answer.',
+    note: 'Fifteen years from a whip to a canopy worth standing under, and longer in a four-foot pit with compacted subsoil under it.',
   },
   UTILITY_UNDERGROUNDING_COST_PER_MILE: {
     label: 'Overhead-to-underground conversion',
     value: 4500000, unit: 'dollars per mile', low: 1500000, high: 12000000,
     source: S.design, confidence: 'contextual',
-    note: 'Almost never justified on fiscal grounds alone. Included so the player can discover that by spending the money.',
+    note: 'Trenching, conduit, vaults, and reconnecting every service on the block. Among the most expensive things a city can do to a mile of street.',
   },
   EMERGENCY_RESPONSE_COST_PER_CRASH: {
     label: 'Municipal emergency response cost per reported crash',
@@ -729,7 +735,7 @@ const liability = defineConstants({
     label: 'Bus fare',
     value: 1.75, unit: 'dollars per boarding', low: 0, high: 3,
     source: S.design, confidence: 'contextual',
-    note: 'Free fares are an instrument the player can choose; it costs revenue and buys ridership and political capital.',
+    note: 'A typical single-ride cash fare on a small-city bus system. Fares recover a quarter of operating cost at best.',
   },
   MUNICIPAL_BORROWING_RATE: {
     label: 'General obligation borrowing rate',
@@ -753,7 +759,7 @@ const liability = defineConstants({
     label: 'National infrastructure funding gap per capita',
     value: 1100, unit: 'dollars per person per year', low: 900, high: 1300,
     source: S.asceReportCard, confidence: 'contextual',
-    note: 'Derived from the ASCE ten-year investment gap and US population. Fairview is not unusual; it is average.',
+    note: 'Derived from the ASCE ten-year investment gap divided by the US population. A per-capita figure, so a city of 120,000 carries about $132M of it.',
   },
   ROADWAY_IMPERVIOUS_ACRES_PER_LANE_MILE: {
     label: 'Impervious area per lane-mile of roadway',
@@ -1345,7 +1351,7 @@ const property = defineConstants({
     label: 'Monthly rent needed to carry each required parking stall',
     value: 150, unit: 'dollars per month per stall', low: 60, high: 250,
     source: S.vtpiParkingHousing, confidence: 'contextual',
-    note: 'Bundled into every unit whether the household owns a car or not. One required space costs a lowest-quintile household about 6% of its budget; two cost 12%.',
+    note: 'Bundled into the rent of every unit whether the household owns a car or not. Structured parking runs several times this.',
   },
   HOUSING_SUPPLY_ELASTICITY: {
     label: 'Elasticity of housing supply with respect to price',
@@ -1420,6 +1426,24 @@ const politics = defineConstants({
     source: S.design, confidence: 'settled',
     note: 'Scaled by approval, so a popular director accumulates capital faster and can spend it on things nobody wants.',
   },
+  PC_REGENERATION_FLOOR_APPROVAL: {
+    label: 'Approval below which political capital drains rather than accrues',
+    value: 15, unit: 'approval points', low: 15, high: 15,
+    source: S.design, confidence: 'settled',
+    note: 'The point where the council stops returning calls. Below it the balance falls every year and a director who never recovers is replaced.',
+  },
+  PC_REGENERATION_PIVOT_SPAN: {
+    label: 'Approval points above the floor that earn the full annual rate',
+    value: 25, unit: 'approval points', low: 25, high: 25,
+    source: S.design, confidence: 'settled',
+    note: 'Measured against the reference plan: at a floor of 20 and a span of 30 the plan cost 323 points and a director could bank about 177 of them, so better than a third of it was refused for want of capital.',
+  },
+  APPROVAL_CONGESTION_ANNUAL_CAP: {
+    label: 'Most approval the traffic can cost in any one year',
+    value: 15, unit: 'approval points per year', low: 15, high: 15,
+    source: S.design, confidence: 'settled',
+    note: 'Opinion moves at a bounded speed. Without a cap the year a through lane came out was worth 130 approval points on its own, because the delay curve is hyperbolic near capacity and the model resolved a whole year at the worst point of it.',
+  },
   PC_SURPLUS_SENSITIVITY: {
     label: 'Approval points per million dollars of surplus swing',
     value: 0.9, unit: 'approval points per million dollars', low: 0.9, high: 0.9,
@@ -1436,7 +1460,7 @@ const politics = defineConstants({
     label: 'Political capital from opening a completed capital project',
     value: 4, unit: 'points', low: 4, high: 4,
     source: S.design, confidence: 'settled',
-    note: 'Standing in front of something finished buys the room for the next unpopular thing. Spending capital to build something that works is how a director refills it.',
+    note: 'Awarded when a capital project opens, not when it is committed to.',
   },
   APPROVAL_RIBBON_CUTTING: {
     label: 'Approval from opening a completed capital project',
@@ -1454,7 +1478,7 @@ const politics = defineConstants({
     label: 'State DOT widening grant match',
     value: 0.9, unit: 'fraction funded by the state', low: 0.9, high: 0.9,
     source: S.design, confidence: 'settled',
-    note: 'The city pays 10% of construction and 100% of maintenance, for ever. The honest core of American municipal finance, and the opening trap of the game.',
+    note: 'The state funds ninety per cent of construction. On completion the roadway transfers to the city, which then carries all maintenance and reconstruction.',
   },
   RUN_LENGTH_YEARS: {
     label: 'Length of a run',

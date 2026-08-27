@@ -12,7 +12,8 @@ import { C } from '../sim/constants'
 import { profileFor } from '../sim/landuse'
 import { crossingDistanceFt } from '../sim/traffic'
 import type { LedgerColumn } from './ledger'
-import { crossingsOf, junctionsOf, roadBands } from './corridor'
+import { crossingsOf, junctionsOf, parkedCarsOf, roadBands } from './corridor'
+import { segmentOf } from '../sim/index'
 import { makeRng } from '../sim/rng'
 import type { Parcel, SimState, StreetState } from '../sim/types'
 import { TILE_FT } from './iso'
@@ -200,12 +201,43 @@ export function buildScene(state: SimState): Scene {
   // Where it is legal to cross, from the one place that decides it.
   const crossingTiles = new Set(
     crossingsOf(state.street).map((c) => Math.round(c.stationFt / TILE_FT)))
+  const plazaSegments = new Set(state.street.plazaSegments)
+  const bulbOuts = state.street.bulbOuts
   for (let gx = 0; gx < layout.gridW; gx++) {
     const atCrossing = crossingTiles.has(gx)
+    // A block closed to through traffic is not a carriageway any more, and it
+    // stopped being one the year the player paid for it. The driver already
+    // hits a road-closed sign here; from above it was still six lanes of
+    // asphalt with the markings on.
+    const paved = plazaSegments.has(segmentOf(gx * TILE_FT))
     for (const row of layout.roadRows) {
+      if (paved) { cell(gx, row.gy, { sort: 'plaza' }); continue }
+      // Kerb extensions stand in the parking bay at a crossing, which is the
+      // whole of what they are: two bays of footway and a shorter walk.
+      if (bulbOuts && atCrossing && row.role === 'parking_bay') {
+        cell(gx, row.gy, { sort: 'walk', kerb: null, coverage: 1 })
+        continue
+      }
       const role: RoadRole = atCrossing && row.role !== 'median_raised' && row.role !== 'median_planted'
         ? 'crosswalk' : row.role
       cell(gx, row.gy, { sort: 'road', role })
+    }
+  }
+
+  // --- Cars left at the kerb ---
+  // From the same function the two eye-level views use, so what the player
+  // counts from the pavement is what they count from above. This is where
+  // metering, daylighting and kerb extensions become visible from the office.
+  const parkingRows = layout.roadRows.filter((r) => r.role === 'parking_bay')
+  if (parkingRows.length > 0) {
+    const northBay = parkingRows[0]!
+    const southBay = parkingRows[parkingRows.length - 1]!
+    for (const car of parkedCarsOf(state.street)) {
+      const gx = Math.round(car.stationFt / TILE_FT)
+      if (gx < 0 || gx >= layout.gridW) continue
+      if (plazaSegments.has(segmentOf(gx * TILE_FT))) continue
+      const gy = car.side === 'north' ? northBay.gy : southBay.gy
+      props.push({ gx, gy, kind: 'parked_car', seed: (gx * 31 + car.tint * 7919) | 0 })
     }
   }
 

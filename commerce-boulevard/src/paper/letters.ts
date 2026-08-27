@@ -263,7 +263,7 @@ export const LETTERS: readonly Template[] = [
     when: (c) => turned(c) && c.o.shortfallChange < 0,
     weight: () => 12,
     text: () => 'I have been writing to this paper about the budget for nine years and I am obliged '
-      + 'to report that the number moved the right way. I am not saying anybody has been vindicated.',
+      + 'to report that the shortfall is smaller than the one I complained about.',
   }),
 
   // --- Anyone --------------------------------------------------------------

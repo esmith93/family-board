@@ -11,7 +11,7 @@ Nobody will tell you what to do about it.
 
 ---
 
-## Status: phases 1 to 7 complete
+## Status: all eight phases complete
 
 The build order puts the simulation first, headless and tested, so that the
 argument exists before the pixels do.
@@ -25,28 +25,40 @@ argument exists before the pixels do.
 | 5 | Raycaster (drive) and side-scroll (walk) cameras | **done** |
 | 6 | Web Audio synthesis | **done** |
 | 7 | Ledger View reveal + year-30 reckoning | **done** |
-| 8 | Onboarding, tuning, polish | not started |
+| 8 | Onboarding, tuning, polish | **done** |
 
 ## Running it
 
 ```bash
 npm install
 npm run dev       # the isometric view, at localhost:5173
-npm test          # 414 tests across the model, the renderers, the economy, the paper and the sound
+npm test          # 433 tests across the model, the renderers, the economy, the paper and the sound
 npm run model     # regenerate MODEL.md from the constant registry
 npm run sim       # play four scripted strategies and print thirty years of each
 npm run sweep     # compare strategies across thirteen generated corridors
 npm run paper     # read thirty years of the Fairview Ledger at the terminal
 npm run audio     # render the synthesiser offline and check it against the model
+npm run politics  # what the council refuses, and how thirty years end, on every corridor
+npm run vocab     # which words each plan earns, and in which year
+npm run subpath   # build it and play it from a subpath, the way GitHub Pages serves it
 ```
 
 In the view: **drag** to pan, **wheel** to zoom, **space** to advance a year,
 **1–4** for day / dusk / night / overcast, **Q W E T** for the seasons, **V** to
 drive the corridor, **B** to walk it, **L** for the Ledger View and **M** for
-sound.
+sound. **Space** or **escape** skips the seasons while a year is turning. The
+running game says all of this in the line above the dock, which is the only
+tutorial there is.
 Instruments are in the dock at the bottom; the caret at its right collapses it.
 
-Pin a corridor with `?seed=fairview` if you want the same one twice.
+Pin a corridor with `?seed=fairview` if you want the same one twice. A run in
+progress is saved as you go, and offered back the next time you open the page.
+
+It builds to **318 KB** of JavaScript and 25 KB of HTML — 341 KB in all against
+the brief's five-megabyte budget — with relative asset paths, so it runs from a
+GitHub Pages project subpath as well as from a domain root. `npm run subpath`
+builds it and plays it from `/commerce-boulevard/` in a headless browser to
+prove it.
 
 ## What is in here
 
@@ -66,6 +78,7 @@ src/sim/            The simulation. Pure, headless, deterministic, no DOM.
   instruments.ts    What the player can do, and what it costs.
   glossary.ts       Vocabulary the player earns by causing the thing.
   step.ts           One year of Fairview.
+  reference-plan.ts The one plan every design claim in the project is measured against.
   reckoning.ts      Thirty years, reported. It does not grade.
 src/paper/          The Fairview Ledger. A character, not a narrator.
   observation.ts    The only thing the paper is allowed to know.
@@ -80,6 +93,7 @@ src/ui/             The chrome: instruments, the two currencies, the cold open.
   camera.ts         Getting into the car, and getting out and walking.
   why.ts            "Why this number?" - provenance for any figure on screen.
   reckoning.ts      The closing document, and the button that starts it again.
+  archive.ts        Saves and run history. A save is a seed and what was done with it.
   format.ts         How money and durations are written.
 src/audio/          What the corridor sounds like. No audio assets anywhere.
   mix.ts            Sim state in, decibels and hertz out. No Web Audio in it.
@@ -127,6 +141,16 @@ ramps per material, empty corners on every ground tile, and a cap on how much of
 a surface may be a single value. Grey rectangles are what placeholders look
 like, so the palette cannot produce one.
 
+Three instruments used to work in the model and move nothing on screen, which
+is the exact failure that rule exists to catch: a player buys a thing, the
+numbers shift, and the street looks identical. A block closed to through traffic
+now draws as paved rather than as six lanes of asphalt with the markings still
+on; kerb extensions stand the footway in the parking bay at each crossing, which
+is the whole of what they are; and daylighting clears the cars and the clutter
+back twenty-five feet from every corner. Kerbside cars are drawn from the same
+function the two eye-level views use, so metering, daylighting and kerb
+extensions are now countable from the office as well as from the pavement.
+
 ### Known limits of the view
 
 The world grid is one traffic lane wide — twelve feet. A change in lane *width*
@@ -139,6 +163,190 @@ Shopfronts are drawn on the viewer-facing side of every building regardless of
 which way the parcel actually fronts. Buildings across the boulevard would
 otherwise show their service yards, and the point of the view is to read the
 street.
+
+## The first ninety seconds
+
+The brief says to playtest them obsessively, because that is where a skeptic is
+won or lost. What that turned up was mostly not writing.
+
+The dock was a fixed slab three hundred and sixty pixels tall. On a 1280x720
+laptop that left **two hundred and twenty pixels of street** — less street than
+chrome, in a game about looking at a street. It is now a share of the window,
+and below 780 pixels of height it drops to a single row of cards. Same laptop,
+**three hundred and five pixels**, and the framing holds from 640 to 1080.
+
+The opening zoom was a hardcoded number, which meant it was not one number. The
+world buffer is the canvas divided by the zoom, so at devicePixelRatio 2 it was
+twice as wide in world units and showed twice as much corridor at half the size:
+two people describing their first look at Commerce Boulevard were describing
+different amounts of it. It is now computed from the window's CSS width to frame
+about a fifth of a mile — enough to read the road as a road, take in several
+frontages and two places it is legal to cross, and still see how far back the
+buildings are.
+
+Three things about the year advance:
+
+- **The skip button was invisible.** Faint text with no ground behind it, over a
+  corridor full of parked cars. It is the only way out of the year, and you
+  could not see it.
+- **Space did nothing while a year was running**, and the newspaper closes on
+  space too — so one press of it put the paper down AND started the next year
+  behind the paper you had just closed. Four presses of Advance produced year
+  sixteen. The year is now not over until the paper is down.
+- **Every hotkey stayed live behind every dialogue.** `V` while the newspaper
+  was up opened the driving camera underneath it, so you put the paper down onto
+  a windscreen you never asked for.
+
+And the seasons now get shorter as the run goes on. Four beats of two seconds,
+thirty times over, is four minutes of watching before a single decision has been
+read; the brief asks for both an eight-second year and an eight-to-twelve minute
+first run, and those do not both fit. The year keeps its four beats and they
+settle to nine hundred milliseconds by year twelve, because the information in
+them drops — the first years are where you are still learning to read the
+picture. Two minutes and twenty-one seconds for the whole run instead of four
+minutes, and nothing you can SEE has been taken away.
+
+## Saves, and the runs before this one
+
+The simulation is deterministic under a seeded PRNG, so a run does not have to
+be stored — it has to be reproduced. A save is the seed and the list of what was
+committed in each year, which replays to exactly the state it came from: the
+test for it asserts the restored state is byte-identical to the original, not
+close to it. **Three hundred and forty bytes** for a run at year sixteen, and an
+old save is a replay rather than a snapshot.
+
+The price is that a save is only true against the model that made it, so every
+record carries a fingerprint of the constant registry and anything that does not
+match is dropped rather than replayed into a lie.
+
+Finished runs are kept the same way, and the reckoning lists them underneath the
+vocabulary: how each one ended, what its revenue covered, what share of trips
+were on foot. In the order they were played. There is no best run, no star, and
+no column that sorts.
+
+## What the numbers said when we finally measured them
+
+Four independent audits ran over the finished build — one against the spec, one
+against the first ninety seconds, one adversarially against the anti-goals, and
+one that wrote probes and measured the difficulty. Between them they found
+things no amount of reading was going to find.
+
+**The vocabulary was being given away, not earned.** The single hardest
+constraint in the brief is that the four reserved words unlock only after the
+player has personally caused the thing they name. Measured across thirteen
+corridors and three plans: `stroad` fired at the end of **year one, on every
+seed and every plan including doing nothing**; `walkability` fired at year six
+of a run where nobody had touched anything, in a card written in the past tense
+congratulating the player for it; and `induced demand` fired in **year three, the
+year the widening opened** — the game leaning over to explain the trick in the
+same year it hands you the win. Every trigger was written against the state of
+the corridor, and the corridor is fast, wide and dangerous on the day you
+arrive. They are now written against what changed, and nothing that names the
+car-centric choice as a mistake may arrive before year nine, because the brief
+protects years one to eight and a vocabulary card is a lecture whatever the
+arithmetic under it says.
+
+| | did nothing | took the widening | bike lane at year 1 | sequenced |
+| --- | --- | --- | --- | --- |
+| Induced demand | never | 13/13, year 9 | never | never |
+| Stroad | never | 13/13, year 9 | never | never |
+| Walkability | never | never | never | 12/13, year 15 |
+| Level of traffic stress | never | never | **8/13, year 7** | never |
+| Sequencing | never | never | 6/13, year 14 | never |
+
+The bottom two rows are the brief's fourth anti-goal, working: the same
+protected lane fails at year seven on a corridor of car parks and does not fail
+at year twelve after the land use changed, and the player is told the word for
+that only by having done both.
+
+**The provenance panel was shipping the thesis in the author's voice.** "Why
+this number?" renders a constant's own note verbatim, and one of those notes
+described the ninety-ten grant as *"the honest core of American municipal
+finance, and the opening trap of the game"* — reachable by clicking a button on
+the grant screen, inside the first ninety seconds, before the player had made a
+single decision. Nine notes were writing to whoever was reading the model rather
+than about a number. They now state the sourced fact and stop, and a test walks
+every constant the player can reach a card for and fails on advocacy, praise, a
+reserved word, or an address to the player.
+
+**Anti-goal 3 was broken on the flagship path.** Over twenty-six corridors,
+taking the state grant LOST to doing nothing on approval, speed and congestion
+alike in years one and two — twenty-six out of twenty-six, all three measures.
+The player takes the free lane and their first two newspapers are of a slower,
+angrier street. Three construction seasons at heavy disruption was also the
+wrong model of the thing: a state-funded capacity project on an existing
+envelope is night work by a contractor the state is paying, and it is famously
+quick, because the department that wants the ribbon-cutting is the one writing
+the cheque. It is now one season, and the test that guards it checks **every**
+year from one to eight on four corridors instead of sampling year eight.
+
+**Two artefacts were doing the firing.** A director running the game's own
+reference plan lost better than a third of their decisions to political capital,
+and the cause was not the price of anything:
+
+- The peak speed collapsed to **7 mph for a single year** when a through lane
+  came out, and recovered to 15 the next. The delay curve is hyperbolic near
+  capacity and the model was resolving a whole year at the worst point of it.
+  The floor is now nine, which is what the model's own comment already said an
+  arterial in failure does.
+- That transient was worth **a hundred and thirty approval points** — more
+  approval than exists. Opinion now moves against a three-year settled average
+  and at a bounded speed, so a road that stays slow keeps costing the cap until
+  people get used to it, and one that empties out inside three years gets away
+  with most of it. Which is the thing about a road diet nobody believes until
+  they have watched one.
+
+Fixing those two, rather than inflating a currency, is what moved it. Adding
+political capital made the reference plan do **worse** — with more of it the
+plan can afford its unpopular moves, which tanks approval, which fires the
+director. The rejections had been protecting the player from a plan the game
+could not survive.
+
+| across thirteen corridors | before | after |
+| --- | --- | --- |
+| moves the council refused | 45.9% | **21.2%** |
+| directors replaced | 6/13 | **1/13** |
+| ran the full thirty | 7/13 | **12/13** |
+| mean approval | 27.8 | **41.7** |
+
+And the two loss states still hold, which is the point: doing nothing goes into
+state oversight on **13 of 13** corridors, and so does taking the widening.
+
+**The road diet was dead content.** At thirty-five political capital it was
+refused on every corridor of every run — while adding kerbside parking removes a
+through lane for ten. The headline capital move in the game was strictly
+dominated by a street-tab card nobody thinks of as a road diet, which is why
+nobody ever saw one. Restriping is genuinely the cheaper construction; what it
+costs is the argument, and the argument is dearer on a corridor that is already
+jammed. It is now six plus sixteen times the volume-capacity ratio.
+
+**Deferring maintenance was cheaper than doing it.** The emergency rebuild was
+priced at the planned rate, so thirteen years of deferral came free and a
+director who never resurfaced ended with a better thirty-year surplus on nine
+corridors of thirteen. An unplanned reconstruction now carries a premium, and
+the test says what the model actually supports rather than the slogan: deferral
+is a way of BORROWING, roughly a wash where the city can pay for the rebuild out
+of revenue and enormous where it cannot — on two corridors the neglectful
+director ends fourteen and seventeen million in debt against a maintaining
+director who ends in surplus.
+
+**Two test files carried two different reference plans**, drifted by a single
+move — homes above shops in year three. After the repricing, that one move was
+the difference between twelve corridors of thirteen finishing and twelve
+corridors of twelve sacking the director by year fourteen. So the simulation's
+tests proved the game could be won on a corridor the newspaper's tests proved
+nobody survives. Neither file was wrong about its own plan; they were not
+talking about the same street. There is now one plan, in one file, imported by
+both.
+
+**And a test in the suite ratified the anti-goal it should have caught.** It was
+titled *"names what the player inherited as well as what they did"* and its
+comment read *"Fairview is a stroad on the day the job starts, so that card is
+earned in the first year by nobody's decision"* — a direct contradiction of the
+rule, written down and asserted. Several others passed only because half the
+corridors died before they could disagree. They now assert the aggregate claim
+with the measured numbers in the comment, which is both weaker and much harder
+to fool.
 
 ## Data integrity
 

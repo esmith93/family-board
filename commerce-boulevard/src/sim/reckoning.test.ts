@@ -199,14 +199,15 @@ describe('the vocabulary', () => {
     }
   })
 
-  it('names what the player inherited as well as what they did', () => {
-    // Fairview is a stroad on the day the job starts, so that card is earned
-    // in the first year by nobody's decision. Induced demand is not: it takes
-    // widening the road and then waiting.
+  it('names only what the player did, never what they were handed', () => {
+    // Fairview is already a stroad on the day the job starts, and that is not
+    // the player's doing. Both of these words have to be bought.
     const early = reckon(play('a', {}, 2)).vocabulary.map((v) => v.term)
-    expect(early).toContain('Stroad')
+    expect(early).not.toContain('Stroad')
     expect(early).not.toContain('Induced demand')
+
     const widened = reckon(play('a', WIDEN)).vocabulary.map((v) => v.term)
     expect(widened).toContain('Induced demand')
+    expect(widened).toContain('Stroad')
   })
 })

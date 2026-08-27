@@ -151,8 +151,25 @@ export interface CorridorModel {
   parked: ParkedCar[]
   /** Segments with no through traffic at all. */
   plazaSegments: number[]
+  /** The kerb pushed out into the parking bay at every marked crossing. */
+  bulbOuts: boolean
+  /** Parking and clutter cleared back from every corner. */
+  daylighting: boolean
   year: number
 }
+
+/**
+ * How far back from a crossing daylighting clears the kerb, in feet.
+ *
+ * Twenty-five feet is what the instrument says it buys and what the model
+ * charges for, so it is what the views draw. It is also roughly one parked
+ * car plus the length of a saloon's bonnet, which is the whole argument: a
+ * driver turning right cannot see a child standing behind a parked van.
+ */
+export const DAYLIGHT_CLEAR_FT = 25
+
+/** Half the painted length of a crossing, along the street. */
+export const CROSSWALK_HALF_FT = 6
 
 /** Feet per floor, matching what the isometric view draws. */
 const FLOOR_HEIGHT_FT = 11
@@ -356,6 +373,12 @@ function maturityAt(ageYears: number, station: number, side: Side): number {
  */
 export function furnitureOf(street: StreetState): Furniture[] {
   const out: Furniture[] = []
+  // Daylighting buys a sight line, and a lamp column standing in it is as
+  // solid as a parked van. Anything on the footway inside the cleared zone
+  // has been moved.
+  const corners = street.daylighting ? crossingsOf(street).map((c) => c.stationFt) : []
+  const inTheWay = (stationFt: number): boolean =>
+    corners.some((at) => Math.abs(at - stationFt) < DAYLIGHT_CLEAR_FT)
   const lamp = street.lighting === 'pedestrian_scale' ? { every: 92, height: 14, fine: true }
     : street.lighting === 'cobra_standard' ? { every: 175, height: 28, fine: false }
       : { every: 240, height: 36, fine: false }
@@ -387,7 +410,9 @@ export function furnitureOf(street: StreetState): Furniture[] {
       })
     }
   }
-  return out.sort((a, b) => a.stationFt - b.stationFt)
+  return out
+    .filter((item) => item.kind === 'shelter' || !inTheWay(item.stationFt))
+    .sort((a, b) => a.stationFt - b.stationFt)
 }
 
 /**
@@ -403,12 +428,31 @@ export function parkedCarsOf(street: StreetState): ParkedCar[] {
   const occupancy = street.onStreetParking === 'free'
     ? 0.92
     : Math.max(0.3, 0.92 - street.meterPricePerHour * 0.12)
+
+  /*
+   * A bay near a crossing may not be a bay any more.
+   *
+   * Daylighting takes the parking back twenty-five feet from every corner so
+   * that a driver can see somebody waiting to cross. Kerb extensions take the
+   * bay itself: the footway is now standing where the car used to. Both are
+   * things the player buys with money and political capital, and until now
+   * neither of them moved a single pixel in any of the three views.
+   */
+  const cleared: number[] = []
+  if (street.daylighting || street.bulbOuts) {
+    for (const crossing of crossingsOf(street)) cleared.push(crossing.stationFt)
+  }
+  const clearFt = street.daylighting ? DAYLIGHT_CLEAR_FT : CROSSWALK_HALF_FT + 4
+  const nearACrossing = (stationFt: number): boolean =>
+    cleared.some((at) => Math.abs(at - stationFt) < clearFt)
+
   const out: ParkedCar[] = []
   const stall = 22
   for (const side of ['north', 'south'] as const) {
     for (let i = 0; ; i++) {
       const stationFt = i * stall + (side === 'north' ? 6 : 13)
       if (stationFt >= C.CORRIDOR_LENGTH_FT) break
+      if (nearACrossing(stationFt)) continue
       // Deterministic, so the same bays are empty every time you walk past.
       const roll = ((Math.sin(stationFt * 0.091 + (side === 'north' ? 0 : 2.4)) + 1) / 2)
       if (roll > occupancy) continue
@@ -435,6 +479,8 @@ export function corridorModel(state: SimState): CorridorModel {
     furniture: furnitureOf(street),
     parked: parkedCarsOf(street),
     plazaSegments: [...street.plazaSegments],
+    bulbOuts: street.bulbOuts,
+    daylighting: street.daylighting,
     year: state.year,
   }
 }

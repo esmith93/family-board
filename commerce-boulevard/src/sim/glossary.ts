@@ -26,18 +26,88 @@ function snapshot(state: SimState, yearsAgo: number) {
   return state.history[state.history.length - 1 - yearsAgo]
 }
 
+/**
+ * Did the player build any of these, and how long ago?
+ *
+ * The load-bearing question in this file. A trigger written against the state
+ * of the corridor describes the corridor the player was HANDED as readily as
+ * the one they made: the boulevard is six lanes at 45 mph with eighty curb
+ * cuts a mile on the day they arrive, so a condition like "fast, wide and
+ * dangerous" is true before they have done anything at all, and firing on it
+ * hands over the vocabulary the spec says has to be earned.
+ */
+function builtAny(state: SimState, ids: readonly string[]): number | null {
+  let earliest: number | null = null
+  for (const id of ids) {
+    const year = state.completed[id]
+    if (year !== undefined && (earliest === null || year < earliest)) earliest = year
+  }
+  return earliest
+}
+
+/** Everything that adds capacity, which is what induced demand answers. */
+const CAPACITY = ['capital.state_widening', 'capital.add_lane'] as const
+
+/** Everything that makes the corridor more of a road and less of a street. */
+const MADE_IT_MORE_OF_A_ROAD = [
+  'capital.state_widening', 'capital.add_lane',
+  'street.raise_target_speed', 'street.widen_lanes',
+] as const
+
+/** Everything a player might reasonably expect to bring people out on foot. */
+const FOR_WALKING = [
+  'street.widen_sidewalks', 'street.plant_trees', 'street.add_crossings',
+  'street.narrow_lanes', 'street.lower_target_speed', 'street.landscaped_median',
+  'street.pedestrian_lighting', 'street.signal_pedestrian_priority',
+  'capital.bulb_outs', 'capital.daylighting', 'capital.road_diet',
+  'capital.plaza_end', 'capital.plaza_middle', 'capital.roundabout',
+  'land.allow_mixed_use', 'land.reduce_setbacks', 'land.reduce_parking_minimums',
+  'land.abolish_parking_minimums', 'land.form_based_code', 'land.raise_height_limit',
+  'land.increase_lot_coverage', 'land.legalise_adu', 'land.reduce_min_lot_size',
+] as const
+
+const BIKE = ['street.protected_bike_lane', 'street.painted_bike_lane'] as const
+
+/**
+ * Nothing that names the car-centric choice as a mistake may arrive before this.
+ *
+ * The brief protects years one to eight: the widening has to genuinely work,
+ * approval up and congestion down, or the game is a lecture. A vocabulary card
+ * explaining what the player has just done to themselves is the lecture, and
+ * it does not stop being one because the arithmetic underneath it is sound.
+ * Nine is the first year the game is allowed an opinion.
+ */
+const FIRST_YEAR_THE_GAME_MAY_COMMENT = 9
+
 export const GLOSSARY_CARDS: readonly GlossaryCard[] = [
   {
     id: 'induced_demand',
     term: 'Induced demand',
     body: 'You added capacity to Commerce Blvd. For a few years it was quicker. Then traffic grew until the delay came back, and the corridor now carries more vehicles at the same speed it had before - on more lane-miles that the city maintains for ever. Economists call the general case the fundamental law of road congestion: over a long enough horizon, vehicle-miles rise roughly in proportion to lane-miles.',
     triggered: (state) => {
-      if (state.street.throughLanesPerDirection <= state.baseline.lanesPerDirection) return false
+      const opened = builtAny(state, CAPACITY)
+      if (opened === null) return false
       const now = snapshot(state, 0)
       if (!now) return false
-      // Speed back to where it started, but carrying more traffic.
-      return now.peakSpeedMph <= state.baseline.peakSpeedMph * 1.04 &&
-        now.aadt > C_INITIAL_AADT * 1.12
+
+      /*
+       * The card is about an ARC, and an arc takes years.
+       *
+       * It used to fire in the year the widening opened, which is the single
+       * worst year to name it: the player has just been handed the win the
+       * brief promises them for years one to eight, and the game leans over
+       * and explains the trick before it has been played. The road has to have
+       * been genuinely quicker, and then have given it back, before the word
+       * means anything.
+       */
+      if (state.year < FIRST_YEAR_THE_GAME_MAY_COMMENT) return false
+      const since = state.history.filter((h) => h.year >= opened)
+      const best = since.reduce((top, h) => Math.max(top, h.peakSpeedMph), 0)
+      if (best < state.baseline.peakSpeedMph * 1.03) return false
+      const bestAt = since.find((h) => h.peakSpeedMph >= best - 0.001)?.year ?? state.year
+      if (state.year - bestAt < 5) return false
+      const thenAadt = since.find((h) => h.year === bestAt)?.aadt ?? now.aadt
+      return now.peakSpeedMph <= best * 0.99 && now.aadt > thenAadt * 1.06
     },
   },
   {
@@ -47,8 +117,25 @@ export const GLOSSARY_CARDS: readonly GlossaryCard[] = [
     triggered: (state) => {
       const now = snapshot(state, 0)
       if (!now) return false
-      const curbCuts = state.parcels.reduce((sum, p) => sum + p.curbCuts, 0) / 1.2
-      return state.street.designSpeedMph >= 40 && curbCuts >= 22 && now.crashes > 55
+
+      /*
+       * Commerce Boulevard is a stroad on the day the player walks in, and
+       * that is not their doing. The trigger used to describe exactly that
+       * corridor - fast, wide, cut to ribbons by driveways - so it fired at
+       * the end of year one on every seed and every plan including doing
+       * nothing, which is the game handing over the word rather than the
+       * player earning it. What a player CAN cause is more of one.
+       */
+      const built = builtAny(state, MADE_IT_MORE_OF_A_ROAD)
+      if (built === null) return false
+      // And not while the win is still landing. The brief protects years one
+      // to eight for the car-centric choice; handing the player a card whose
+      // last line is "the portmanteau is not a compliment" in year three, for
+      // the one move the game steered them into, is the lecture it forbids.
+      if (state.year - built < 6) return false
+      if (state.year < FIRST_YEAR_THE_GAME_MAY_COMMENT) return false
+      return state.street.designSpeedMph >= 40
+        && now.crashes > state.baseline.crashes * 1.15
     },
   },
   {
@@ -64,7 +151,15 @@ export const GLOSSARY_CARDS: readonly GlossaryCard[] = [
     triggered: (state) => {
       const now = snapshot(state, 0)
       if (!now) return false
-      return state.year >= 6 && now.groceryWalkShare < 0.06 && now.transportCostShare > 0.22
+      // Written against absolute thresholds this never fired once in thirty
+      // years on any plan, because the corridor does not start anywhere near
+      // them. Against the baseline it says what it is supposed to say: the
+      // player made it harder to live here without a car than they found it.
+      if (state.year < 6) return false
+      if (builtAny(state, MADE_IT_MORE_OF_A_ROAD) === null) return false
+      return now.groceryWalkShare <= state.baseline.walkShare * 0.5
+        || (now.transportCostShare >= state.history[0]!.transportCostShare
+          && now.modeShare.drive >= state.history[0]!.modeShare.drive)
     },
   },
   {
@@ -73,7 +168,16 @@ export const GLOSSARY_CARDS: readonly GlossaryCard[] = [
     body: 'Something changed on Commerce Blvd: enough people now make enough trips on foot that the number shows up in the mode split. It was not the pavement that did it - wide pavements beside fast traffic stay empty. It was having somewhere within a quarter of a mile worth walking to.',
     triggered: (state) => {
       const now = snapshot(state, 0)
-      return !!now && now.modeShare.walk >= 0.15
+      if (!now) return false
+      /*
+       * A flat threshold of fifteen per cent fired at year six of a run where
+       * the player did nothing at all, on every seed, and the card's own text
+       * congratulates them for a change that never happened. It has to be a
+       * delta, and it has to be one they bought.
+       */
+      const built = builtAny(state, FOR_WALKING)
+      if (built === null || state.year - built < 3) return false
+      return now.modeShare.walk >= state.baseline.walkShare + 0.06
     },
   },
   {
@@ -83,7 +187,19 @@ export const GLOSSARY_CARDS: readonly GlossaryCard[] = [
     triggered: (state) => {
       const now = snapshot(state, 0)
       if (!now) return false
-      return state.street.bikeFacility !== 'none' && state.year >= 4 && now.modeShare.bike < 0.012
+      /*
+       * One of the two moves the brief says must be able to fail. It failed in
+       * the model and the card never appeared, because the threshold was a
+       * bike share so low that a lane on a dead corridor still cleared it.
+       * The measure of failure is not the level, it is the level against what
+       * the lane cost and against a corridor that could have used it.
+       */
+      const built = builtAny(state, BIKE)
+      if (built === null || state.year - built < 4) return false
+      const stalls = state.parcels.reduce((sum, p) => sum + p.surfaceStalls, 0)
+      const acres = state.parcels.reduce((sum, p) => sum + p.acres, 0)
+      const stillMostlyParking = (stalls * 330) / 43560 / acres > 0.44
+      return stillMostlyParking && now.modeShare.bike < 0.03
     },
   },
   {
@@ -92,7 +208,12 @@ export const GLOSSARY_CARDS: readonly GlossaryCard[] = [
     body: 'The pipes, pavement and lighting under Commerce Blvd carry a replacement cost that arrives on a schedule nobody set and nobody funded. It scales with how much ground has to be served, not with how much value sits on it. Fairview has been booking the assets and not the obligation.',
     triggered: (state) => {
       const now = snapshot(state, 0)
-      return !!now && now.liabilityPerAcre > now.revenuePerAcre
+      if (!now) return false
+      // The ratio has to have got worse than the one on the desk on day one.
+      // Otherwise this is a card about the corridor the player was handed.
+      const wasCovered = state.baseline.revenuePerAcre / Math.max(1, state.baseline.liabilityPerAcre)
+      const isCovered = now.revenuePerAcre / Math.max(1, now.liabilityPerAcre)
+      return isCovered < 1 && isCovered < wasCovered * 0.9
     },
   },
   {
@@ -112,13 +233,10 @@ export const GLOSSARY_CARDS: readonly GlossaryCard[] = [
     triggered: (state) => {
       const now = snapshot(state, 0)
       if (!now) return false
-      return state.glossary.unlocked.includes('traffic_stress') && now.modeShare.bike >= 0.03
+      return state.glossary.unlocked.includes('traffic_stress') && now.modeShare.bike >= 0.022
     },
   },
 ]
-
-// Imported lazily to keep the glossary free of a cycle through constants.
-const C_INITIAL_AADT = 31000
 
 /** Cards that have newly unlocked this year. */
 export function checkGlossary(state: SimState): string[] {

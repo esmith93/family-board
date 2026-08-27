@@ -7,7 +7,7 @@
  */
 
 import {
-  makeCamera, project, PX_PER_FLOOR, TILE_H, TILE_W, toScreen, unproject, visibleRange, type Camera,
+  makeCamera, project, PX_PER_FLOOR, TILE_FT, TILE_H, TILE_W, toScreen, unproject, visibleRange, type Camera,
 } from './iso'
 import { makePalette, SKY, type LightName, type PaletteVariant, type SeasonName } from './palette'
 import { SpriteCache, type CachedSprite } from './cache'
@@ -39,6 +39,16 @@ export interface RenderStats {
 }
 
 type Ctx = CanvasRenderingContext2D
+
+/**
+ * How much corridor the opening frame holds, in feet.
+ *
+ * A fifth of a mile: enough to read the road as a road, take in several
+ * frontages and two places it is legal to cross, and still see that the
+ * buildings are set a long way back from the kerb. The whole 1.2 miles at
+ * once turns every building into a chip of colour.
+ */
+const OPENING_VIEW_FT = 1100
 
 interface DrawItem {
   depth: number
@@ -207,6 +217,35 @@ export class IsometricRenderer {
           radius: p.kind === 'cobra' ? 62 : 28,
         }
       })
+  }
+
+  /**
+   * Frame the corridor for a window this many CSS pixels wide.
+   *
+   * The zoom comes from the window's CSS width and not from its device pixels,
+   * so the same window frames the same length of street on a retina screen and
+   * on a cheap one. A hardcoded zoom did not: the world buffer is the canvas
+   * divided by the zoom, so at devicePixelRatio 2 it was twice as wide in world
+   * units and showed twice as much corridor at half the size. Two people
+   * describing their first look at Commerce Boulevard were describing
+   * different amounts of it.
+   *
+   * The clamp is what keeps the art honest. Below about a third, a tile drawn
+   * at sixty-four pixels is being minified more than three to one and the
+   * hatching on a car park turns to porridge.
+   */
+  frameCorridor(cssWidth: number): void {
+    if (!this.scene) return
+    const wanted = cssWidth / ((OPENING_VIEW_FT / TILE_FT) * (TILE_W / 2))
+    this.camera.zoom = Math.max(0.3, Math.min(0.75, wanted))
+    this.camera.gx = 0.5 * this.scene.gridW
+    // The middle of the carriageway, worked out from where the lanes actually
+    // are. A row number that was right when it was typed stops being right the
+    // first time somebody removes a lane.
+    const lanes = this.scene.lanes
+    this.camera.gy = lanes.length > 0
+      ? lanes.reduce((total, lane) => total + lane.gy, 0) / lanes.length
+      : this.scene.gridH / 2
   }
 
   /** Centre the camera on a point along the corridor, 0..1. */

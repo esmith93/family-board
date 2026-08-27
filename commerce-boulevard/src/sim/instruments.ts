@@ -202,7 +202,7 @@ const street: Instrument[] = [
   make({
     id: 'street.signal_pedestrian_priority',
     tab: 'street',
-    label: 'Retime signals for pedestrian priority',
+    label: 'Retime the signals to a seventy-five second cycle',
     description: 'Shortens the cycle to 75 seconds and adds an exclusive pedestrian phase at each signal. Controller work only.',
     capitalCost: (s) => 85000 * costIndex(s.year),
     pcCost: () => 16,
@@ -215,7 +215,7 @@ const street: Instrument[] = [
   make({
     id: 'street.signal_progression',
     tab: 'street',
-    label: 'Retime signals for vehicle progression',
+    label: 'Retime the signals to a hundred-and-forty second cycle',
     description: 'Lengthens the cycle to 140 seconds and coordinates the arterial green band.',
     capitalCost: (s) => 85000 * costIndex(s.year),
     pcCost: () => 0,
@@ -272,7 +272,7 @@ const street: Instrument[] = [
     unlockHint: 'Available once the corridor runs three buses an hour.',
     tab: 'street',
     label: 'Convert a lane each way to a bus lane',
-    description: 'Removes one through lane per direction. Buses run about 25% faster on the corridor.',
+    description: 'Reserves one through lane per direction for buses and emergency vehicles. Restriping and signage.',
     capitalCost: (s) => 380000 * corridorMiles * costIndex(s.year),
     pcCost: () => 30,
     constructionYears: 1,
@@ -526,11 +526,27 @@ const capital: Instrument[] = [
     unlockHint: 'The offer expires after year 2.',
     tab: 'capital',
     label: 'Accept the state DOT widening grant',
-    description: 'The state funds 90% of construction to add one through lane each way. The city pays the remaining 10% and takes ownership of the finished roadway, including all future maintenance and reconstruction. Three construction seasons. Offer expires after year 2.',
+    description: 'The state funds 90% of construction to add one through lane each way. The city pays the remaining 10% and takes ownership of the finished roadway, including all future maintenance and reconstruction. One construction season, worked at night. Offer expires after year 2.',
     capitalCost: (s) => 2 * corridorMiles * C.ROAD_RECONSTRUCT_COST_PER_LANE_MILE * 2.4 * costIndex(s.year) * (1 - C.STATE_GRANT_MATCH_RATIO),
     pcCost: () => 0,
-    constructionYears: 3,
-    disruption: 0.16,
+    /*
+     * One season, and hardly any of it felt.
+     *
+     * At three seasons and 0.16 disruption this was measured, over twenty-six
+     * corridors, to LOSE to doing nothing on speed, approval and congestion
+     * alike in years one and two - all twenty-six, every time. The player takes
+     * the free lane and their first two newspapers are a slower, angrier
+     * street. That is the brief's third anti-goal broken on the flagship path,
+     * in the ninety seconds it says decide whether a skeptic stays.
+     *
+     * It is also the wrong model of the thing. A state-funded capacity project
+     * on an existing envelope is night work by a contractor the state is
+     * paying, and it is famously quick, because the department that wants the
+     * ribbon-cutting is the one writing the cheque. The city's share of the
+     * pain comes later, on a schedule nobody reads.
+     */
+    constructionYears: 1,
+    disruption: 0.04,
     unlockedBy: (s) => s.year <= 2,
     applicable: (s) => s.year <= 2 && s.street.throughLanesPerDirection < 4 &&
       !s.obligations.some((o) => o.id.startsWith('capital.state_widening')),
@@ -584,7 +600,19 @@ const capital: Instrument[] = [
     label: 'Remove one through lane each way',
     description: 'Reduces through lanes per direction by one. Restriping plus kerb work at intersections. Two construction seasons.',
     capitalCost: (s) => 620000 * corridorMiles * costIndex(s.year),
-    pcCost: (s) => Math.round(14 + 34 * Math.min(1, s.traffic.volumeCapacityRatio)),
+    /*
+     * Repriced against its own substitute.
+     *
+     * At 14 + 34 v/c this was refused on every corridor of every run of the
+     * reference plan, and the plan still ended at two lanes each way - because
+     * adding kerbside parking removes a through lane for ten points and a
+     * sixth of the money. The headline capital move in the game was strictly
+     * dominated by a street-tab card nobody thinks of as a road diet, which is
+     * why nobody ever saw one. Restriping is genuinely the cheaper
+     * construction; what it costs is the argument, and the argument is
+     * dearer on a corridor that is already jammed.
+     */
+    pcCost: (s) => Math.round(6 + 16 * Math.min(1, s.traffic.volumeCapacityRatio)),
     constructionYears: 2,
     disruption: 0.25,
     applicable: (s) => s.street.throughLanesPerDirection > 1,

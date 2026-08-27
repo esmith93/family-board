@@ -7,9 +7,9 @@ Every number the simulation uses appears below with its value, its units, an hon
 range, and where it came from. The in-game **"Why this number?"** panel reads the same
 registry, so a constant cannot enter the model without declaring its source.
 
-- **193** constants in the model
+- **197** constants in the model
 - **100** carry a citation to published work
-- **93** are game design parameters, marked as such rather than dressed up with a citation they do not have
+- **97** are game design parameters, marked as such rather than dressed up with a citation they do not have
 - **24** sit on literature where researchers actively disagree
 
 ## How to read the confidence column
@@ -34,7 +34,7 @@ game surfaces to the player with the disagreement attached.
 - **Annual routine maintenance per lane-mile** — 15,000 dollars per lane-mile per year (range 8,000–30,000). Sweeping, patching, striping, snow, signs. Excludes resurfacing and reconstruction. State-reported figures vary by a factor of ten, partly through inconsistent accounting.
 - **Mill and overlay cost per lane-mile** — 250,000 dollars per lane-mile (range 150,000–400,000). Urban arterial, including traffic control and driveway tie-ins.
 - **Full reconstruction cost per lane-mile** — 450,000 dollars per lane-mile (range 250,000–1,200,000). Full depth, kerb to kerb. The upper end applies where drainage and utilities have to be rebuilt with it, which on an old arterial is usual.
-- **Reconstruction cycle** — 25 years (range 20–40). Shorter than most cities budget for. The obligation the state DOT grant hands the city, and the one nobody funds.
+- **Reconstruction cycle** — 25 years (range 20–40). Shorter than most cities budget for. A reconstruction rebuilds the roadway to full depth including the base and the drainage; a resurfacing does not.
 - **Water main replacement cost** — 340 dollars per linear foot (range 190–500). Urban street, open cut, including restoring the pavement above it.
 - **Sanitary sewer replacement cost** — 300 dollars per linear foot (range 150–550). Deeper than water, but usually smaller diameter, so the costs land close together.
 - **Annual energy and maintenance per streetlight** — 250 dollars per pole per year (range 150–500). LED conversion cuts the energy half but not the maintenance half.
@@ -74,7 +74,7 @@ Level design. Not research, and labelled as such.
 - **Corridor segments** (`CORRIDOR_SEGMENTS`): Twelve blocks of 528 ft, each with parcels on both sides.
 - **Share of corridor land in surface parking at year 0** (`INITIAL_SURFACE_PARKING_SHARE`): High, but not unusual for a US commercial strip. The corridor generator fits the mix to hit exactly this.
 - **Fairview population** (`CITY_POPULATION`): The city is the tax base that has to pay for the corridor.
-- **Opening general fund shortfall** (`OPENING_DEFICIT`): The number on screen in the first ten seconds. Everything else follows from it.
+- **Opening general fund shortfall** (`OPENING_DEFICIT`): The adopted general fund is short by this much before anything on Commerce Boulevard has been decided.
 - **Households the corridor serves** (`SERVICE_AREA_HOUSEHOLDS`): About 18,000 people, or 15% of Fairview, live close enough for the corridor to be their high street.
 
 ## Traffic, capacity and induced demand
@@ -148,8 +148,8 @@ The central fiscal fact: what a given acre pays the city each year.
 | `ASSESSMENT_LAG_YEARS`<br>Lag between value change and assessed value | 2 | years | 1–4 | Varies by context | _Design parameter_ |
 
 - **Effective property tax rate, commercial, all jurisdictions** (`EFFECTIVE_PROPERTY_TAX_RATE_COMMERCIAL`): Median effective commercial rate across large US cities. Varies more than threefold between states.
-- **Effective property tax rate, residential, all jurisdictions** (`EFFECTIVE_PROPERTY_TAX_RATE_RESIDENTIAL`): Lower than commercial in most states - a classification difference that quietly subsidises detached housing.
-- **City share of the total property tax levy** (`CITY_SHARE_OF_PROPERTY_LEVY`): Schools and the county take most of it. The city carries the road but collects a third of the tax - which is why the corridor ledger is so unforgiving.
+- **Effective property tax rate, residential, all jurisdictions** (`EFFECTIVE_PROPERTY_TAX_RATE_RESIDENTIAL`): Lower than the commercial rate in most states. The gap is a classification difference, not a difference in assessed value.
+- **City share of the total property tax levy** (`CITY_SHARE_OF_PROPERTY_LEVY`): Schools and the county take most of it. The city maintains the roadway and collects about a third of the levy raised on the land beside it.
 - **Local share of sales tax** (`LOCAL_SALES_TAX_SHARE`): Set so year-zero big-box sales tax per acre lands inside the published range. A test asserts it does.
 - **Assessed value per acre: vacant lot** (`VALUE_PER_ACRE_VACANT`): Land only, discounted for holding cost and uncertainty.
 - **Assessed value per acre: surface parking** (`VALUE_PER_ACRE_SURFACE_PARKING`): Backed out from roughly $4,000 per acre per year in total property tax. Parking lots are assessed almost entirely as land and are frequently under-assessed; the range is enormous.
@@ -179,6 +179,7 @@ What that acre costs the city each year. Liability follows area, revenue follows
 | `ROAD_RESURFACE_COST_PER_LANE_MILE`<br>Mill and overlay cost per lane-mile | 250,000 | dollars per lane-mile | 150,000–400,000 | Contested | [Florida DOT, Generic Cost Per Mile Models (Long Range Estimating summary)](https://ftp.fdot.gov/public/file/ze-JhsHT0ku2YmntigTtIQ/Summary.pdf) (c. 2016-2024) |
 | `ROAD_RECONSTRUCT_COST_PER_LANE_MILE`<br>Full reconstruction cost per lane-mile | 450,000 | dollars per lane-mile | 250,000–1,200,000 | Contested | [City of Arvada, Colorado, "Understanding the Pavement Program"](https://www.arvadaco.gov/1299/Understanding-the-Pavement-Program) (2024) |
 | `PAVEMENT_RESURFACE_CYCLE_YEARS`<br>Resurfacing cycle | 12 | years | 8–15 | Varies by context | [FHWA, "The Use of Thin Asphalt Overlays for Pavement Preservation" (Tech Brief HIF-19-053)](https://www.fhwa.dot.gov/pavement/asphalt/pubs/hif19053.pdf) (2019) |
+| `EMERGENCY_RECONSTRUCTION_PREMIUM`<br>Cost multiplier on a reconstruction the city did not plan | 1.45 | multiple of the planned cost | 1.2–1.9 | Varies by context | _Design parameter_ |
 | `PAVEMENT_RECONSTRUCT_CYCLE_YEARS`<br>Reconstruction cycle | 25 | years | 20–40 | Contested | [City of Arvada, Colorado, "Understanding the Pavement Program"](https://www.arvadaco.gov/1299/Understanding-the-Pavement-Program) (2024) |
 | `WATER_MAIN_REPLACE_COST_PER_FT`<br>Water main replacement cost | 340 | dollars per linear foot | 190–500 | Contested | [City of Phoenix, Water and Wastewater Unit Cost Study (Carollo Engineers)](https://www.phoenix.gov/content/dam/phoenix/pddsite/documents/impact-fees/2025-if-update/Water%20and%20Wastewater%20Unit%20Cost%20Study_08142024_v2.pdf) (2024) |
 | `SEWER_REPLACE_COST_PER_FT`<br>Sanitary sewer replacement cost | 300 | dollars per linear foot | 150–550 | Contested | [City of Phoenix, Water and Wastewater Unit Cost Study (Carollo Engineers)](https://www.phoenix.gov/content/dam/phoenix/pddsite/documents/impact-fees/2025-if-update/Water%20and%20Wastewater%20Unit%20Cost%20Study_08142024_v2.pdf) (2024) |
@@ -207,7 +208,8 @@ What that acre costs the city each year. Liability follows area, revenue follows
 - **Mill and overlay cost per lane-mile** (`ROAD_RESURFACE_COST_PER_LANE_MILE`): Urban arterial, including traffic control and driveway tie-ins.
 - **Full reconstruction cost per lane-mile** (`ROAD_RECONSTRUCT_COST_PER_LANE_MILE`): Full depth, kerb to kerb. The upper end applies where drainage and utilities have to be rebuilt with it, which on an old arterial is usual.
 - **Resurfacing cycle** (`PAVEMENT_RESURFACE_CYCLE_YEARS`): Deferring it is cheap for about five years and then very expensive, because the base starts to fail.
-- **Reconstruction cycle** (`PAVEMENT_RECONSTRUCT_CYCLE_YEARS`): Shorter than most cities budget for. The obligation the state DOT grant hands the city, and the one nobody funds.
+- **Cost multiplier on a reconstruction the city did not plan** (`EMERGENCY_RECONSTRUCTION_PREMIUM`): Emergency mobilisation, a shorter tender list and work sequenced around a failed base rather than a programme. Without a premium, letting the road fail was measurably cheaper than resurfacing it on time, which is the opposite of the thing being modelled.
+- **Reconstruction cycle** (`PAVEMENT_RECONSTRUCT_CYCLE_YEARS`): Shorter than most cities budget for. A reconstruction rebuilds the roadway to full depth including the base and the drainage; a resurfacing does not.
 - **Water main replacement cost** (`WATER_MAIN_REPLACE_COST_PER_FT`): Urban street, open cut, including restoring the pavement above it.
 - **Sanitary sewer replacement cost** (`SEWER_REPLACE_COST_PER_FT`): Deeper than water, but usually smaller diameter, so the costs land close together.
 - **Buried pipe service life** (`PIPE_SERVICE_LIFE_YEARS`): Long enough that no official who authorised it will be in office when it fails. Depends heavily on pipe material and soil.
@@ -220,15 +222,15 @@ What that acre costs the city each year. Liability follows area, revenue follows
 - **Sidewalk service life** (`SIDEWALK_SERVICE_LIFE_YEARS`): Tree roots and utility cuts shorten it well below the design life of the concrete.
 - **Cost to plant one street tree** (`STREET_TREE_PLANTING_COST`): Including the pit, soil volume and three years of establishment watering. Skimping on soil volume is why so many street trees die at fifteen years.
 - **Annual street tree maintenance** (`STREET_TREE_ANNUAL_COST`): Pruning cycle, removals and replacements averaged over the population.
-- **Years to useful canopy** (`STREET_TREE_MATURITY_YEARS`): The longest lag in the game. A tree planted in year 25 does nothing for the player, and that is the honest answer.
-- **Overhead-to-underground conversion** (`UTILITY_UNDERGROUNDING_COST_PER_MILE`): Almost never justified on fiscal grounds alone. Included so the player can discover that by spending the money.
+- **Years to useful canopy** (`STREET_TREE_MATURITY_YEARS`): Fifteen years from a whip to a canopy worth standing under, and longer in a four-foot pit with compacted subsoil under it.
+- **Overhead-to-underground conversion** (`UTILITY_UNDERGROUNDING_COST_PER_MILE`): Trenching, conduit, vaults, and reconnecting every service on the block. Among the most expensive things a city can do to a mile of street.
 - **Municipal emergency response cost per reported crash** (`EMERGENCY_RESPONSE_COST_PER_CRASH`): The city budget share only - police, fire and EMS time. The societal cost is two orders of magnitude larger and falls on somebody else.
 - **Gross operating cost per bus revenue hour** (`TRANSIT_OPERATING_COST_PER_REVENUE_HOUR`): Before fare recovery. Fares cover a quarter of this at best on a small-city bus system.
-- **Bus fare** (`TRANSIT_FARE`): Free fares are an instrument the player can choose; it costs revenue and buys ridership and political capital.
+- **Bus fare** (`TRANSIT_FARE`): A typical single-ride cash fare on a small-city bus system. Fares recover a quarter of operating cost at best.
 - **General obligation borrowing rate** (`MUNICIPAL_BORROWING_RATE`): Rises as the citys fiscal position deteriorates, which is the debt spiral in one line.
 - **Construction cost escalation** (`INFLATION_RATE`): The NHCCI ran near 6% a year in the early 2020s. 4.5% is used as a thirty-year average, because sustaining 6% for three decades would make every capital instrument unaffordable by year 20.
 - **General price inflation** (`GENERAL_INFLATION_RATE`): Applied to property values, retail spending, rents and incomes. The gap between this and construction escalation is the squeeze: costs compound faster than the tax base does, every year, for thirty years.
-- **National infrastructure funding gap per capita** (`INFRA_GAP_PER_CAPITA_ANNUAL`): Derived from the ASCE ten-year investment gap and US population. Fairview is not unusual; it is average.
+- **National infrastructure funding gap per capita** (`INFRA_GAP_PER_CAPITA_ANNUAL`): Derived from the ASCE ten-year investment gap divided by the US population. A per-capita figure, so a city of 120,000 carries about $132M of it.
 - **Impervious area per lane-mile of roadway** (`ROADWAY_IMPERVIOUS_ACRES_PER_LANE_MILE`): A 12-foot lane one mile long is 63,360 sqft, or 1.45 acres. Arithmetic, before shoulders.
 
 ## Safety
@@ -486,7 +488,7 @@ Whether shops survive and what it costs to live here.
 - **Structured parking construction cost per stall** (`STRUCTURED_PARKING_COST_PER_STALL`): National median for above-grade structured parking. Below grade runs $48,000-$115,000 and rises 30-60% for each level down.
 - **Surface parking construction cost per stall** (`SURFACE_PARKING_COST_PER_STALL`): Paving, drainage, striping and lighting, excluding the land - which is the expensive part, and the part nobody counts.
 - **Land consumed per surface parking stall** (`PARKING_STALL_AREA_SQFT`): Stall plus its share of aisle. About 130 stalls to the acre.
-- **Monthly rent needed to carry each required parking stall** (`PARKING_MINIMUM_COST_PER_UNIT`): Bundled into every unit whether the household owns a car or not. One required space costs a lowest-quintile household about 6% of its budget; two cost 12%.
+- **Monthly rent needed to carry each required parking stall** (`PARKING_MINIMUM_COST_PER_UNIT`): Bundled into the rent of every unit whether the household owns a car or not. Structured parking runs several times this.
 - **Elasticity of housing supply with respect to price** (`HOUSING_SUPPLY_ELASTICITY`): The supply-side and supply-sceptic camps disagree sharply about this number and about what it implies locally. The range here is wide on purpose.
 - **Elasticity of rent with respect to allowed density** (`RENT_DENSITY_ELASTICITY`): Negative because more allowed supply lowers rent, but local studies find effects ranging from strongly negative to none at all.
 - **Median rent in Fairview, away from the corridor** (`CITY_MEDIAN_RENT`): The anchor corridor rents are measured against. The corridor is a small part of a housing market it does not control.
@@ -505,6 +507,9 @@ Game design parameters, tuned by play.
 | --- | ---: | --- | ---: | --- | --- |
 | `STARTING_POLITICAL_CAPITAL`<br>Political capital at hiring | 60 | points | 60–60 | Settled | _Design parameter_ |
 | `PC_ANNUAL_REGENERATION_BASE`<br>Political capital earned per year at neutral approval | 7 | points per year | 7–7 | Settled | _Design parameter_ |
+| `PC_REGENERATION_FLOOR_APPROVAL`<br>Approval below which political capital drains rather than accrues | 15 | approval points | 15–15 | Settled | _Design parameter_ |
+| `PC_REGENERATION_PIVOT_SPAN`<br>Approval points above the floor that earn the full annual rate | 25 | approval points | 25–25 | Settled | _Design parameter_ |
+| `APPROVAL_CONGESTION_ANNUAL_CAP`<br>Most approval the traffic can cost in any one year | 15 | approval points per year | 15–15 | Settled | _Design parameter_ |
 | `PC_SURPLUS_SENSITIVITY`<br>Approval points per million dollars of surplus swing | 0.9 | approval points per million dollars | 0.9–0.9 | Settled | _Design parameter_ |
 | `APPROVAL_CONGESTION_SENSITIVITY`<br>Approval lost per 10% rise in peak travel time | 6 | approval points | 6–6 | Settled | _Design parameter_ |
 | `PC_RIBBON_CUTTING`<br>Political capital from opening a completed capital project | 4 | points | 4–4 | Settled | _Design parameter_ |
@@ -515,12 +520,15 @@ Game design parameters, tuned by play.
 
 - **Political capital at hiring** (`STARTING_POLITICAL_CAPITAL`): Enough to make one unpopular move in the first three years, and not two.
 - **Political capital earned per year at neutral approval** (`PC_ANNUAL_REGENERATION_BASE`): Scaled by approval, so a popular director accumulates capital faster and can spend it on things nobody wants.
+- **Approval below which political capital drains rather than accrues** (`PC_REGENERATION_FLOOR_APPROVAL`): The point where the council stops returning calls. Below it the balance falls every year and a director who never recovers is replaced.
+- **Approval points above the floor that earn the full annual rate** (`PC_REGENERATION_PIVOT_SPAN`): Measured against the reference plan: at a floor of 20 and a span of 30 the plan cost 323 points and a director could bank about 177 of them, so better than a third of it was refused for want of capital.
+- **Most approval the traffic can cost in any one year** (`APPROVAL_CONGESTION_ANNUAL_CAP`): Opinion moves at a bounded speed. Without a cap the year a through lane came out was worth 130 approval points on its own, because the delay curve is hyperbolic near capacity and the model resolved a whole year at the worst point of it.
 - **Approval points per million dollars of surplus swing** (`PC_SURPLUS_SENSITIVITY`): Voters notice the budget eventually, and blame whoever is in the chair.
 - **Approval lost per 10% rise in peak travel time** (`APPROVAL_CONGESTION_SENSITIVITY`): Congestion is the most legible thing a resident experiences, so it moves approval hardest and soonest. Tuned high on purpose: this is why the widening is so tempting, and if it were not tempting the game would be a lecture.
-- **Political capital from opening a completed capital project** (`PC_RIBBON_CUTTING`): Standing in front of something finished buys the room for the next unpopular thing. Spending capital to build something that works is how a director refills it.
+- **Political capital from opening a completed capital project** (`PC_RIBBON_CUTTING`): Awarded when a capital project opens, not when it is committed to.
 - **Approval from opening a completed capital project** (`APPROVAL_RIBBON_CUTTING`): Finishing something visible is worth more politically than the thing itself usually deserves. Mayors know this; the model does too.
 - **Approval lost per additional death on the corridor** (`APPROVAL_FATALITY_SENSITIVITY`): Deliberately small. Residents do not attribute traffic deaths to the Public Works Director, which is most of why nothing changes.
-- **State DOT widening grant match** (`STATE_GRANT_MATCH_RATIO`): The city pays 10% of construction and 100% of maintenance, for ever. The honest core of American municipal finance, and the opening trap of the game.
+- **State DOT widening grant match** (`STATE_GRANT_MATCH_RATIO`): The state funds ninety per cent of construction. On completion the roadway transfers to the city, which then carries all maintenance and reconstruction.
 - **Length of a run** (`RUN_LENGTH_YEARS`): Long enough for one pavement cycle and one generation of children.
 
 ## Land use profiles

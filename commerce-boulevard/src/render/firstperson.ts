@@ -12,7 +12,7 @@
  * past the far kerb. No DOM anywhere in this file.
  */
 
-import type { CorridorModel, Frontage, Side } from './corridor'
+import { CROSSWALK_HALF_FT, type CorridorModel, type Frontage, type Side } from './corridor'
 import { P } from './palette'
 
 /** Grid cell for the occupancy map, in feet. One traffic lane. */
@@ -260,6 +260,13 @@ export function buildPlan(model: CorridorModel): Plan {
       if ((flags & CrossFlag.Footway) !== 0) {
         if (y < 0 ? cutNorth : cutSouth) { table[i] = Ground.Driveway; continue }
         table[i] = kind === Ground.Pavement && jointOn ? Ground.Joint : kind
+        continue
+      }
+      // Kerb extensions. At a crossing the bay is not a bay: the footway has
+      // been built out into it, which is why the walk across is shorter. The
+      // model already charges for that; this is the picture catching up.
+      if (onCrossing && model.bulbOuts && kind === Ground.ParkingBay) {
+        table[i] = Ground.Pavement
         continue
       }
       if (onCrossing && (flags & CrossFlag.Median) === 0) {
@@ -523,7 +530,6 @@ export const GROUND_INK: Uint8Array = (() => {
 })()
 
 const STRIPE_HALF_FT = 0.35
-const CROSSWALK_HALF_FT = 6
 
 /**
  * What is underfoot at a point on the plan.

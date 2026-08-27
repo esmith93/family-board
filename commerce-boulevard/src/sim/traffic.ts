@@ -137,7 +137,13 @@ export function corridorSpeed(
   const roundaboutMinutes = (street.roundabouts.length * 7) / 60
 
   const totalMinutes = runningMinutes + signalMinutes + roundaboutMinutes
-  return Math.max(7, (lengthMiles / totalMinutes) * 60)
+  // The floor is what the comment above says an arterial in failure does. It
+  // was 7, below the bottom of the range the model itself states, and it was
+  // binding: five signals at the 115-second cap is nine and a half minutes of
+  // control delay over 1.2 miles, so the year a lane came out the corridor
+  // read 7 mph and then recovered to 15, and the transient was worth a
+  // hundred and thirty approval points on its own.
+  return Math.max(9, (lengthMiles / totalMinutes) * 60)
 }
 
 /** Person-trips per day that begin or end on the corridor. */

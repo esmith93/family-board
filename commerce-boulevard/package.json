@@ -16,7 +16,10 @@
     "sweep": "vite-node tools/sweep.ts",
     "paper": "vite-node tools/read-paper.ts",
     "shots": "node tools/shot.mjs && node tools/shot-paper.mjs && node tools/shot-fp.mjs && node tools/shot-ledger.mjs",
-    "audio": "node tools/audio-probe.mjs"
+    "audio": "node tools/audio-probe.mjs",
+    "politics": "vite-node tools/politics.ts",
+    "vocab": "vite-node tools/vocab.ts",
+    "subpath": "npm run build && node tools/subpath.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.3.0",

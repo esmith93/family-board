@@ -89,6 +89,12 @@ export function newGame(seed: string): SimState {
   state.fiscal = stepFiscal(revenue, expenses, state.fiscal, state.street, state.parcels, 0)
   state.baseline.revenuePerAcre = state.fiscal.revenuePerAcre
   state.baseline.liabilityPerAcre = state.fiscal.liabilityPerAcre
+  // What the corridor was like before the player touched it, so the glossary
+  // can tell a thing they did from a thing they inherited.
+  state.baseline.designSpeedMph = state.street.designSpeedMph
+  state.baseline.walkShare = state.modeShare.walk
+  state.baseline.crashes = state.safety.crashes
+  state.baseline.curbCuts = state.parcels.reduce((sum, p) => sum + p.curbCuts, 0)
 
   state.history = [snapshotOf(state, travel, 0)]
   return state
@@ -129,6 +135,7 @@ export function advanceYear(state: SimState, chosenInstrumentIds: readonly strin
 
     if (instrument.constructionYears === 0) {
       instrument.apply(next)
+      next.completed[instrument.id] ??= next.year
       if (cost > 0) next.fiscal.reserve -= cost
     } else {
       const project: ActiveProject = {
@@ -171,6 +178,7 @@ export function advanceYear(state: SimState, chosenInstrumentIds: readonly strin
     if (remaining <= 0) {
       const instrument = instrumentById(project.instrumentId)
       if (instrument) instrument.apply(next)
+      next.completed[project.instrumentId] ??= next.year + 1
       // Something finished, and finishing things is popular.
       next.politics.approval = clamp(next.politics.approval + C.APPROVAL_RIBBON_CUTTING, 0, 100)
       next.politics.capital = clamp(next.politics.capital + C.PC_RIBBON_CUTTING, 0, 120)
@@ -301,7 +309,19 @@ function forceReconstructionIfFailed(state: SimState): void {
   if (state.street.pavementAgeYears < C.PAVEMENT_RECONSTRUCT_CYCLE_YEARS) return
   if (state.activeProjects.some((p) => p.instrumentId === 'capital.reconstruct')) return
 
-  const cost = laneMiles(state.street) * C.ROAD_RECONSTRUCT_COST_PER_LANE_MILE * costIndex(state.year)
+  /*
+   * More than the same job done on purpose.
+   *
+   * Measured across thirteen corridors, a director who never resurfaced ended
+   * with a BETTER thirty-year surplus than one who did on nine of them, and
+   * the same peak speed. Letting the road fail was simply cheaper: the
+   * emergency rebuild was priced at the planned rate, so thirteen years of
+   * deferral came free. An unplanned reconstruction is mobilised in a hurry,
+   * tendered to whoever is available, and sequenced around a base that has
+   * already gone.
+   */
+  const cost = laneMiles(state.street) * C.ROAD_RECONSTRUCT_COST_PER_LANE_MILE
+    * costIndex(state.year) * C.EMERGENCY_RECONSTRUCTION_PREMIUM
   state.activeProjects.push({
     instrumentId: 'capital.reconstruct',
     label: 'Emergency reconstruction: Commerce Blvd has reached the end of its life',
@@ -348,12 +368,46 @@ function collectStateAid(state: SimState): number {
 function updatePolitics(
   next: SimState, previous: SimState, disruption: number, closures: number, openings: number,
 ): void {
-  const previousSpeed = Math.max(1, previous.traffic.peakSpeedMph)
+  /*
+   * What residents have got used to, not what happened last Tuesday.
+   *
+   * Measuring against a single previous year made approval a step function.
+   * Removing a through lane takes ten miles an hour off the peak in the year
+   * it happens, and at six approval points per ten per cent of travel time
+   * that is a forty-point collapse in one year - which is a sacking. Measured
+   * across the reference plan, one year in eight fell more than fifteen points
+   * and the worst fell forty-four. The reference plan was not losing directors
+   * to being wrong. It was losing them to a transient.
+   *
+   * An opinion of the traffic is formed over a few years of driving it.
+   * Averaging over three gives the same total displeasure for a road that is
+   * permanently slower, spreads it over the time it takes anyone to form the
+   * view, and lets a corridor whose traffic evaporates within three years get
+   * away with most of it - which is the thing about a road diet that nobody
+   * believes until they have watched one happen.
+   */
+  const recent = previous.history.slice(-3)
+  const settled = recent.length > 0
+    ? recent.reduce((total, h) => total + h.peakSpeedMph, 0) / recent.length
+    : previous.traffic.peakSpeedMph
+  const previousSpeed = Math.max(1, settled)
   // Travel time, not speed: a 10% slower trip is what a resident notices.
   const travelTimeChange = previousSpeed / Math.max(1, next.traffic.peakSpeedMph) - 1
 
   let delta = 0
-  delta -= C.APPROVAL_CONGESTION_SENSITIVITY * (travelTimeChange / 0.1)
+  /*
+   * Bounded, in both directions.
+   *
+   * The delay curve is hyperbolic near capacity, so a single year at the wrong
+   * side of it produced a two-hundred-per-cent travel-time change and a
+   * hundred-and-thirty-point approval loss - more approval than exists. A road
+   * that stays slow keeps costing the cap every year until the settled average
+   * catches up with it, which is the same total displeasure delivered at the
+   * speed an opinion actually forms.
+   */
+  const congestion = C.APPROVAL_CONGESTION_SENSITIVITY * (travelTimeChange / 0.1)
+  delta -= Math.max(-C.APPROVAL_CONGESTION_ANNUAL_CAP,
+    Math.min(C.APPROVAL_CONGESTION_ANNUAL_CAP, congestion))
   delta += C.PC_SURPLUS_SENSITIVITY * (next.fiscal.surplus / 1_000_000)
   delta -= disruption * 14
   delta -= closures * 0.35
@@ -384,10 +438,19 @@ function updatePolitics(
     + next.fiscal.surplus / 700_000
     - (next.fiscal.debt - previous.fiscal.debt) / 900_000, 0, 100)
 
-  // Capital accrues for a popular director and DRAINS for an unpopular one.
-  // Below about 35% approval the council stops returning calls, and a director
-  // who never recovers runs out and is replaced.
-  const regeneration = C.PC_ANNUAL_REGENERATION_BASE * ((next.politics.approval - 20) / 30)
+  /*
+   * Capital accrues for a popular director and DRAINS for an unpopular one.
+   *
+   * The pivot used to sit at approval 20 over a span of 30, which sounds
+   * reasonable and is not: a director running the game's own reference plan
+   * averages about 34% approval, because half the plan is unpopular by
+   * construction, and at that approval the old curve paid 3.5 points a year
+   * against a plan that costs eleven. Better than a third of every plan was
+   * refused for want of capital - not as a choice the player made, but as
+   * arithmetic they could not see and could not have avoided.
+   */
+  const regeneration = C.PC_ANNUAL_REGENERATION_BASE
+    * ((next.politics.approval - C.PC_REGENERATION_FLOOR_APPROVAL) / C.PC_REGENERATION_PIVOT_SPAN)
   next.politics.capital = clamp(next.politics.capital + regeneration, 0, 120)
 }
 
@@ -432,14 +495,27 @@ function updateHouseholds(next: SimState, travel: ReturnType<typeof computeTrave
  * The Ledger View is earned, never given.
  *
  * It unlocks when the player hits the wall - debt past a year and a half of
- * revenue, or a sustained deficit - which in practice happens somewhere
- * between year 12 and year 20.
+ * revenue, or a sustained deficit - which the brief puts somewhere between
+ * year 12 and year 20.
+ *
+ * The floor used to be year 8 and a four-year deficit streak, and measured
+ * over twenty corridors that put the player who took the state grant at year
+ * 8 flat while the player who did nothing waited until 14. Which is backwards
+ * twice over: it opens the argument before the widening has finished making
+ * it, and it rewards the worse decision with the better tool. The floor is now
+ * 11 and the streak six, so both paths land inside the window the brief asks
+ * for and the view arrives when there is still time to act on it.
  */
+const LEDGER_EARLIEST_YEAR = 11
+const LEDGER_DEFICIT_STREAK = 6
+
 function maybeUnlockLedger(state: SimState): void {
   if (state.ledgerUnlocked) return
-  const deficitYears = state.history.slice(-4).filter((h) => h.surplus < 0).length
+  const deficitYears = state.history.slice(-LEDGER_DEFICIT_STREAK)
+    .filter((h) => h.surplus < 0).length
   const drowning = state.fiscal.debt > state.fiscal.revenue.total * 1.5
-  if (drowning || (deficitYears >= 4 && state.year >= 8)) {
+  if (state.year < LEDGER_EARLIEST_YEAR) return
+  if (drowning || deficitYears >= LEDGER_DEFICIT_STREAK) {
     state.ledgerUnlocked = true
     state.events.push({
       id: 'ledger_unlocked', year: state.year, kind: 'fiscal',

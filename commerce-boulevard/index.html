@@ -61,6 +61,13 @@
   #sidenote { align-self: flex-start; padding: 8px 12px; max-width: 260px; font-size: 11px;
     color: var(--muted); }
   #sidenote b { color: var(--ink); font-weight: 600; }
+  #sidenote .label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--faint); margin-bottom: 5px; }
+  #sidenote .faction { display: grid; grid-template-columns: 1fr auto; column-gap: 10px;
+    align-items: baseline; margin-bottom: 4px; }
+  #sidenote .faction i { grid-column: 1 / -1; height: 2px; background: var(--line);
+    border-radius: 1px; margin-top: 2px; min-width: 1px;
+    box-shadow: inset 0 0 0 1px var(--muted); }
 
   /* --- Bottom: the instruments ----------------------------------------- */
   #dock { position: fixed; left: 10px; right: 10px; bottom: 10px; z-index: 5;
@@ -76,13 +83,26 @@
   #tabs #fold { margin-left: auto; border-radius: 4px 4px 0 0; color: var(--faint); padding: 6px 12px; }
   #tabs #fold:hover { color: var(--ink); }
 
-  #dockbody { display: flex; min-height: 0; border-radius: 0 4px 4px 4px; }
-  /* Two fixed rows of fixed-width cards, scrolling sideways. Fixed so the
-     dock is the same height whatever is in it, and the second row is never
-     half off the bottom of the screen. */
-  #cards { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: 268px;
-    grid-template-rows: repeat(2, 150px); gap: 8px; padding: 10px; overflow-x: auto; overflow-y: hidden;
-    scrollbar-width: thin; }
+  /* The dock is a share of the window, not a fixed slab. This is a game about
+     looking at a street: on a 1280x720 laptop a fixed 360px dock left 220px of
+     street, which is less street than chrome. Rows are fractions of whatever
+     height the clamp allows, and below 780px there is only room for one. */
+  #dockbody { display: flex; min-height: 0; border-radius: 0 4px 4px 4px;
+    height: clamp(180px, 34vh, 320px); }
+  #cards { flex: 1; min-width: 0; display: grid; grid-auto-flow: column; grid-auto-columns: 268px;
+    grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px;
+    overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+  @media (max-height: 780px) {
+    /* One row, so each card is twice as tall and can show twice the text. */
+    #cards { grid-template-rows: minmax(0, 1fr); }
+    #cards .card .desc { -webkit-line-clamp: 11; }
+    #commitlist { max-height: 999px; }
+  }
+  @media (max-height: 660px) {
+    .meter { padding: 6px 12px; min-width: 104px; }
+    .meter .value { font-size: 15px; }
+    #sidenote { font-size: 10px; padding: 6px 10px; }
+  }
   #cards::-webkit-scrollbar { height: 8px; }
   #cards::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
 
@@ -120,6 +140,9 @@
   #commitlist .row button { color: var(--faint); font-size: 13px; line-height: 1; }
   #commitlist .row button:hover { color: var(--warn); }
   #commitlist .none { color: var(--faint); font-style: italic; }
+  /* What last year would not start. The simulation always knew; nothing said. */
+  #commitlist .refused { color: var(--warn); font-size: 10.5px; line-height: 1.4;
+    padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
   #totals { font-size: 11.5px; display: flex; flex-direction: column; gap: 2px; }
   #totals .t { display: flex; justify-content: space-between; }
   #totals .over { color: var(--warn); }
@@ -175,10 +198,16 @@
   .tag.contested { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, var(--line)); }
   .tag.design { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 40%, var(--line)); }
 
-  #hint { position: fixed; left: 10px; bottom: 372px; font-size: 10.5px; color: var(--faint);
-    z-index: 3; transition: bottom 0.18s ease; }
+  /* The hint rides in the dock rather than at a hardcoded offset above it,
+     because the dock is no longer one height. Faint text needs a ground under
+     it or it disappears into a car park. */
+  #hint { position: fixed; left: 10px; z-index: 3; padding: 5px 10px; border-radius: 3px;
+    font-size: 10.5px; color: var(--faint); transition: bottom 0.18s ease;
+    background: color-mix(in srgb, var(--paper) 78%, transparent); backdrop-filter: blur(4px);
+    /* Rides the dock's own clamp: dock body + tabs + the dock's bottom margin. */
+    bottom: calc(clamp(180px, 34vh, 320px) + 47px); }
   body.folded #hint { bottom: 48px; }
-  #hint b { color: var(--muted); font-weight: 500; }
+  #hint b { color: var(--ink-dim); font-weight: 500; }
   body.firstperson #getout { display: none; }
 
   /* --- The Fairview Ledger ---------------------------------------------- */
@@ -253,10 +282,14 @@
   body.advancing #dock, body.advancing #hint { opacity: 0.1; pointer-events: none;
     transition: opacity 0.5s ease; }
   body.advancing #skip { display: block; }
+  /* Faint text with no ground behind it vanishes into a corridor full of
+     parked cars, and this is the only way out of the year. It gets a panel. */
   #skip { display: none; position: fixed; right: 14px; bottom: 14px; z-index: 9;
     font: 10px/1 var(--mono); letter-spacing: 0.16em; text-transform: uppercase;
-    color: var(--faint); padding: 8px 12px; border: 1px solid var(--line); border-radius: 3px; }
+    color: var(--ink-dim); padding: 9px 13px; border: 1px solid var(--line); border-radius: 3px;
+    background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(6px); }
   #skip:hover { color: var(--ink); border-color: var(--accent); }
+  #skip .key { color: var(--faint); margin-left: 8px; }
 
   /* --- Getting out of the office -------------------------------------- */
   #fp { position: fixed; inset: 0; z-index: 25; background: #000; display: flex;
@@ -286,7 +319,10 @@
   body.firstperson #topbar, body.firstperson #dock, body.firstperson #works,
   body.firstperson #hint, body.firstperson #skip { display: none; }
 
-  #getout { position: fixed; right: 10px; bottom: 372px; z-index: 4; display: flex; gap: 6px;
+  /* Rides the dock's clamp, like the hint. A fixed offset was correct for
+     exactly one dock height. */
+  #getout { position: fixed; right: 10px; bottom: calc(clamp(180px, 34vh, 320px) + 47px);
+    z-index: 4; display: flex; gap: 6px;
     transition: bottom 0.18s ease; }
   body.folded #getout { bottom: 48px; }
   #getout button { padding: 7px 13px; font: 10px/1 var(--mono); letter-spacing: 0.13em;
@@ -401,7 +437,7 @@
 </div>
 
 <div id="season"><span></span></div>
-<button id="skip">Skip &rarr;</button>
+<button id="skip">Skip <span class="key">space</span></button>
 
 <div class="veil hidden" id="paper"><div id="papersheet"></div></div>
 <div class="veil hidden" id="modal"><div class="sheet" id="modalsheet"></div></div>

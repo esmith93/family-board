@@ -14,6 +14,7 @@
 
 import { reckon, type Format, type Reckoning, type ReckoningLine, type SimState } from '../sim/index'
 import { escapeHtml, money } from './format'
+import type { RunRecord } from './archive'
 
 const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T
 
@@ -86,7 +87,40 @@ function accountTable(reckoning: Reckoning): string {
 }
 
 /** Show it. Resolves when the player closes it. */
-export function showReckoning(state: SimState, onRestart: () => void): void {
+/**
+ * Runs you have already played.
+ *
+ * The one place the game can put two of the player's own thirty years next to
+ * each other. It is a list in the order they happened - not a table that sorts,
+ * not a best run, not a personal best. Every column is a fact the run finished
+ * on, and the sentence anybody draws out of reading down them is theirs.
+ */
+function previousRuns(runs: RunRecord[]): string {
+  const past = runs.slice(0, -1)
+  if (past.length === 0) return ''
+  const ENDING: Readonly<Record<RunRecord['reason'], string>> = {
+    fired: 'Replaced',
+    insolvent: 'State oversight',
+    completed: 'Ran the thirty',
+  }
+  const rows = past.map((run, i) => `
+    <tr>
+      <th>Run ${i + 1}<span class="note">${escapeHtml(run.seed)}</span></th>
+      <td class="then">${ENDING[run.reason]}, year ${run.finishedYear}</td>
+      <td class="now">${run.ratio.toFixed(2)}<span class="unit">×</span></td>
+      <td class="now">${(run.walkShare * 100).toFixed(1)}<span class="unit">%</span></td>
+    </tr>`).join('')
+  return `
+    <h3>Corridors before this one</h3>
+    <table class="reck">
+      <thead>
+        <tr><th></th><th>Ended</th><th>Revenue ÷ liability</th><th>On foot</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`
+}
+
+export function showReckoning(state: SimState, runs: RunRecord[], onRestart: () => void): void {
   const reckoning = reckon(state)
   const sheet = el('reckoning')
 
@@ -119,6 +153,7 @@ export function showReckoning(state: SimState, onRestart: () => void): void {
     ${sections}
     ${accountTable(reckoning)}
     ${vocabulary}
+    ${previousRuns(runs)}
 
     <div class="actions"><button class="primary" id="reckagain">Start again</button></div>`
 

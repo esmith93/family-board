@@ -417,7 +417,9 @@ export function createInitialState(seed: string): SimState {
     baseline: {
       laneMiles: 0, localVehicleTrips: 0, lanesPerDirection: 3,
       peakSpeedMph: 0, revenuePerAcre: 0, liabilityPerAcre: 0,
+      designSpeedMph: 0, walkShare: 0, crashes: 0, curbCuts: 0,
     },
+    completed: {},
     residentsLeft: 0,
     ended: null,
     events: [],

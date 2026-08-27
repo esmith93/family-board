@@ -15,6 +15,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { advanceYear, cityShortfall, newGame, type SimState } from '../sim/index'
+import { REFERENCE_PLAN_MAINTAINED } from '../sim/reference-plan'
 import { observe } from './observation'
 import { newMemory, circumstanceOf, type PaperMemory } from './residents'
 import { composeFrontPage, type FrontPage } from './paper'
@@ -136,7 +137,10 @@ describe('the paper keeps the game\'s other promises too', () => {
     // It is not allowed to tell the player they were right.
     const text = everything()
     for (const phrase of [
-      'congratulations', 'well done', 'the right thing', 'great job', 'vindicated the',
+      'congratulations', 'well done', 'the right thing', 'great job',
+      // Stemmed. The ban used to read 'vindicated the' and a letter got
+      // through saying 'been vindicated'.
+      'vindicat', 'the right way', 'nobody wanted to be on',
       'proved right', 'visionary', 'bold leadership', 'courageous',
     ]) {
       expect(text, `the paper handed out a prize: "${phrase}"`).not.toContain(phrase)
@@ -332,37 +336,9 @@ function widenThenNothing(state: SimState): string[] {
   return state.year === 0 ? ['capital.state_widening'] : []
 }
 
-/**
- * The plan the simulation tests already showed can finish a run: land use
- * first, then the street, then the modes that depend on both, with the
- * pavement kept alive along the way.
- */
-const SEQUENCED: Record<number, string[]> = {
-  0: ['land.reduce_parking_minimums'],
-  1: ['land.allow_mixed_use'],
-  2: ['fiscal.business_improvement_district'],
-  4: ['land.reduce_setbacks'],
-  5: ['fiscal.land_value_shift'],
-  6: ['land.abolish_parking_minimums'],
-  7: ['capital.road_diet'],
-  8: ['capital.repave'],
-  9: ['street.add_kerb_parking'],
-  10: ['fiscal.price_parking'],
-  11: ['land.raise_height_limit'],
-  12: ['street.lower_target_speed'],
-  13: ['fiscal.land_value_shift'],
-  14: ['street.narrow_lanes'],
-  15: ['street.add_crossings'],
-  16: ['land.raise_height_limit'],
-  17: ['street.plant_trees'],
-  18: ['capital.bulb_outs'],
-  19: ['fiscal.land_value_shift'],
-  21: ['land.form_based_code'],
-  22: ['capital.repave'],
-}
-
+/** The one reference plan, shared with the simulation's own tests. */
 function sequencedPlan(state: SimState): string[] {
-  return SEQUENCED[state.year] ?? []
+  return REFERENCE_PLAN_MAINTAINED[state.year] ?? []
 }
 
 /** The nice things, and only the nice things. This is allowed to not work. */

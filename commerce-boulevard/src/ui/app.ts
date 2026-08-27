@@ -17,11 +17,12 @@ import { IsometricRenderer } from '../render/renderer'
 import type { LightName, SeasonName } from '../render/palette'
 import { duration, escapeHtml, money, percent } from './format'
 import { initWhy, showWhy } from './why'
-import { hideModal, runOpening } from './opening'
+import { hideModal, offerToResume, runOpening } from './opening'
 import { showFrontPage } from './newspaper'
 import { FirstPerson } from './camera'
 import { Sound } from '../audio/sound'
 import { showReckoning } from './reckoning'
+import { clearSave, loadRuns, loadSave, recordRun, writeSave, type MoveLog, type SaveGame } from './archive'
 import { buildLedgerScene, ledgerSummary } from '../render/ledger'
 import { observe } from '../paper/observation'
 import { circumstanceOf, newMemory, type PaperMemory } from '../paper/residents'
@@ -42,7 +43,27 @@ const YEAR_SEASONS: { season: SeasonName; light: LightName; caption: string }[] 
   { season: 'autumn', light: 'dusk', caption: 'Autumn' },
   { season: 'winter', light: 'overcast', caption: 'Winter' },
 ]
-const SEASON_MS = 2000
+
+/*
+ * How long a season holds.
+ *
+ * The brief asked for a year in about eight seconds, and for a first run of
+ * eight to twelve minutes. Those two do not both fit: four beats of two
+ * seconds, thirty times over, is four minutes of watching before a single
+ * decision has been read. So the year keeps its four beats and they get
+ * shorter as the run goes on, because the information in them drops. The
+ * first years are the ones where the player is still learning to read the
+ * picture; by the twelfth they are watching a clock. The whole run of
+ * seasons now costs about two minutes instead of four, and nothing about
+ * what the player can SEE has been taken away.
+ */
+const SEASON_MS_FIRST = 2000
+const SEASON_MS_FLOOR = 900
+const SEASON_SETTLES_BY_YEAR = 12
+function seasonMs(year: number): number {
+  const t = Math.max(0, Math.min(1, (year - 2) / (SEASON_SETTLES_BY_YEAR - 2)))
+  return Math.round(SEASON_MS_FIRST + (SEASON_MS_FLOOR - SEASON_MS_FIRST) * t)
+}
 
 /** The plan the simulation tests use, for the ?ff= development shortcut. */
 const DEV_PLAN: Record<number, string[]> = {
@@ -77,9 +98,19 @@ export class Game {
   private started = false
   private advancing = false
   private skipped = false
+  private skipResolve: (() => void) | null = null
+  /** True only while the seasons are turning, which is the skippable part. */
+  private watchingSeasons = false
   private memory: PaperMemory
   private sceneId = 0
   private ledgerOpen = false
+  /**
+   * What was committed, by the year it was committed. This IS the save: the
+   * simulation is deterministic, so the seed and this replay the run exactly.
+   */
+  private moves: MoveLog = {}
+  /** What last year would not start, and why. Cleared when it is read. */
+  private rejected: { instrumentId: string; reason: string }[] = []
   private readonly sound = new Sound()
   private readonly firstPerson = new FirstPerson(this.sound)
 
@@ -91,10 +122,7 @@ export class Game {
     this.bindInput()
     this.fit()
     this.refreshScene()
-    this.renderer.camera.gy = 38
-    this.renderer.camera.zoom = 0.55
-    this.renderer.lookAt(0.5, 0)
-    this.renderer.camera.gy = 38
+    this.renderer.frameCorridor(window.innerWidth)
     this.renderAll()
     const query = new URLSearchParams(window.location.search)
     const skipTo = Number(query.get('ff') ?? 0)
@@ -107,11 +135,62 @@ export class Game {
 
   private async open(): Promise<void> {
     document.body.classList.add('intro')
+
+    // Somebody who left a run open gets it back before anything else happens.
+    // A first-time player has no save, sees none of this, and walks straight
+    // into the budget.
+    const save = loadSave()
+    if (save && await offerToResume(save.year)) {
+      document.body.classList.remove('intro')
+      this.resume(save)
+      return
+    }
+    clearSave()
+
     const accepted = await runOpening(this.state)
     document.body.classList.remove('intro')
     this.started = true
     if (accepted) this.selected.add('capital.state_widening')
     this.renderAll()
+  }
+
+  /**
+   * Play a saved run back into being.
+   *
+   * There is no stored state to load: the seed and the moves are the save, and
+   * running them is what restores the corridor. Thirty years takes about a
+   * second, which is the dividend of having built the simulation pure.
+   */
+  private resume(save: SaveGame): void {
+    this.state = newGame(save.seed)
+    this.memory = newMemory(this.state)
+    this.moves = { ...save.moves }
+    this.replay((year) => save.moves[year] ?? [], save.year)
+    this.started = true
+    this.refreshScene()
+    this.renderer.frameCorridor(window.innerWidth)
+    this.renderAll()
+    if (this.state.ended) this.finish()
+  }
+
+  /**
+   * Run years without animating them.
+   *
+   * The paper is composed for each one even though nobody reads it, because
+   * its memory - who has written in, what it has already printed, whether the
+   * desk has come round - is part of the state being restored. Skip it and a
+   * resumed run gets letters it has already run.
+   */
+  private replay(movesFor: (year: number) => string[], years: number): void {
+    for (let y = 0; y < years && !this.state.ended; y++) {
+      const before = cityShortfall(this.state)
+      this.state = advanceYear(this.state, movesFor(this.state.year)).state
+      const frozen = this.state
+      composeFrontPage(
+        observe(this.state, cityShortfall(this.state), before),
+        this.memory, (r) => circumstanceOf(r, frozen), this.state.seed,
+      )
+    }
   }
 
   /**
@@ -124,17 +203,7 @@ export class Game {
     const script = plan === 'nothing' ? {}
       : plan === 'widen' ? { 0: ['capital.state_widening'] } as Record<number, string[]>
         : DEV_PLAN
-    for (let y = 0; y < years && !this.state.ended; y++) {
-      const before = cityShortfall(this.state)
-      this.state = advanceYear(this.state, script[this.state.year] ?? []).state
-      // Run the paper too, so its memory - who has written in, what it has
-      // already printed, whether it has come round - is where it should be.
-      const frozen = this.state
-      composeFrontPage(
-        observe(this.state, cityShortfall(this.state), before),
-        this.memory, (r) => circumstanceOf(r, frozen), this.state.seed,
-      )
-    }
+    this.replay((year) => script[year] ?? [], years)
     this.refreshScene()
     this.renderAll()
     // A run that ended during the skip still ended, and still has a reckoning.
@@ -142,6 +211,8 @@ export class Game {
   }
 
   private restart(): void {
+    clearSave()
+    this.moves = {}
     this.state = newGame(seedForToday())
     this.ledgerOpen = false
     document.body.classList.remove('ledger')
@@ -153,26 +224,54 @@ export class Game {
     void this.open()
   }
 
+  /**
+   * One year.
+   *
+   * The year is not over when the snow clears, it is over when the player has
+   * put the paper down. Holding the lock until then is what stops a space bar
+   * held down from turning four years into sixteen behind a newspaper nobody
+   * saw - the newspaper closes on space too, and both listeners were firing.
+   */
   private async advance(): Promise<void> {
     if (this.state.ended || this.advancing) return
     this.advancing = true
+    this.watchingSeasons = true
     this.skipped = false
     document.body.classList.add('advancing')
 
     const chosen = [...this.selected]
     const shortfallBefore = cityShortfall(this.state)
+    this.rejected = []
+
+    const beat = seasonMs(this.state.year)
 
     // Spring, summer, autumn. The city is still last year's city.
     for (const step of YEAR_SEASONS.slice(0, 3)) {
       this.renderer.setSeason(step.season)
       this.renderer.setLight(step.light)
       this.showSeason(step.caption)
-      await this.wait(SEASON_MS)
+      await this.wait(beat)
     }
 
     // The year actually happens between autumn and winter.
+    const committedIn = this.state.year
     const result = advanceYear(this.state, chosen)
     this.state = result.state
+    // What was PASSED to the year, not what the year accepted: replaying the
+    // same list gets the same rejections for the same reasons.
+    this.moves[committedIn] = chosen
+    writeSave(this.state.seed, this.moves, this.state.year)
+    /*
+     * Say what did not happen.
+     *
+     * `YearResult.rejected` was populated by the simulation and read by
+     * nothing. A player following the game's own reference line loses better
+     * than a third of their decisions to political capital, and every one of
+     * them used to vanish between pressing Advance and the newspaper arriving,
+     * with no message of any kind. A plan that quietly does not happen is
+     * indistinguishable from a plan that does not work.
+     */
+    this.rejected = result.rejected
     this.selected.clear()
     this.refreshScene()
     this.renderAll()
@@ -181,23 +280,25 @@ export class Game {
     this.renderer.setSeason(winter.season)
     this.renderer.setLight(winter.light)
     this.showSeason(winter.caption)
-    await this.wait(SEASON_MS)
+    await this.wait(beat)
 
     this.showSeason(null)
     this.sound.atDesk(this.state)
     this.renderer.setSeason('summer')
     this.renderer.setLight('day')
     document.body.classList.remove('advancing')
-    this.advancing = false
+    this.watchingSeasons = false
 
-    await this.readThePaper(shortfallBefore)
+    try {
+      await this.readThePaper(shortfallBefore)
 
-    // Vocabulary the player has just earned by causing the thing it names.
-    const unlocked = this.state.events.filter((e) => e.id === 'glossary_unlocked')
-    if (unlocked.length > 0) {
-      this.showGlossary(String(unlocked[0]!.detail.card))
-      return
+      // Vocabulary the player has just earned by causing the thing it names.
+      const unlocked = this.state.events.filter((e) => e.id === 'glossary_unlocked')
+      if (unlocked.length > 0) await this.showGlossary(String(unlocked[0]!.detail.card))
+    } finally {
+      this.advancing = false
     }
+
     if (this.state.ended) this.finish()
   }
 
@@ -229,29 +330,56 @@ export class Game {
     if (caption) banner.querySelector('span')!.textContent = caption
   }
 
+  /**
+   * The player would rather not watch the rest of this year.
+   *
+   * Reachable from the button, the space bar and escape, because a player who
+   * wants to move on presses the thing they already pressed to get here.
+   */
+  private skipTheYear(): void {
+    if (!this.watchingSeasons) return
+    this.skipped = true
+    const resolve = this.skipResolve
+    this.skipResolve = null
+    resolve?.()
+  }
+
   /** Wait, unless the player has said they would rather not. */
   private wait(ms: number): Promise<void> {
     return new Promise((resolve) => {
       if (this.skipped) { resolve(); return }
-      const timer = window.setTimeout(resolve, ms)
-      const skip = (): void => { this.skipped = true; window.clearTimeout(timer); resolve() }
-      el('skip').addEventListener('click', skip, { once: true })
-      window.setTimeout(() => el('skip').removeEventListener('click', skip), ms)
+      const timer = window.setTimeout(() => { this.skipResolve = null; resolve() }, ms)
+      this.skipResolve = (): void => { window.clearTimeout(timer); resolve() }
     })
   }
 
   /** Thirty years, or the day the council ran out of patience. */
   private finish(): void {
     this.sound.hush(true)
-    showReckoning(this.state, () => {
+    const summary = ledgerSummary(this.state)
+    const last = this.state.history[this.state.history.length - 1]
+    recordRun({
+      seed: this.state.seed,
+      moves: this.moves,
+      finishedYear: this.state.ended?.year ?? this.state.year,
+      reason: this.state.ended?.reason ?? 'completed',
+      ratio: summary.ratio,
+      debt: this.state.fiscal.debt,
+      walkShare: last?.modeShare.walk ?? 0,
+      groceryWalkShare: last?.groceryWalkShare ?? 0,
+      at: Date.now(),
+    })
+    // The run is over, so there is nothing left to come back to.
+    clearSave()
+    showReckoning(this.state, loadRuns(), () => {
       this.sound.hush(false)
       this.restart()
     })
   }
 
-  private showGlossary(id: string): void {
+  private showGlossary(id: string): Promise<void> {
     const card = cardById(id)
-    if (!card) return
+    if (!card) return Promise.resolve()
     const sheet = el('modalsheet')
     sheet.innerHTML = `
       <div class="kicker">Something you have now seen for yourself</div>
@@ -259,9 +387,8 @@ export class Game {
       <p>${escapeHtml(card.body)}</p>
       <div class="actions"><button class="primary" id="gok">Noted</button></div>`
     el('modal').classList.remove('hidden')
-    el('gok').addEventListener('click', () => {
-      hideModal()
-      if (this.state.ended) this.finish()
+    return new Promise((resolve) => {
+      el('gok').addEventListener('click', () => { hideModal(); resolve() }, { once: true })
     })
   }
 
@@ -421,11 +548,20 @@ export class Game {
       ['Drivers', f.drivers], ['Merchants', f.merchants], ['Homeowners', f.homeowners],
       ['Renters', f.renters], ['Taxpayers', f.taxpayers],
     ]
+    /*
+     * One ink colour, and the magnitude in the bar.
+     *
+     * Standing used to go green above 65 and red below 30. It is the only
+     * green-for-good left in the chrome that is not about solvency, and the
+     * one the brief sanctions is solvency. Standing with drivers is a
+     * resource, not a verdict, and the game does not get to shade it.
+     */
     el('sidenote').innerHTML = `
-      <div class="label" style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--faint);margin-bottom:5px">Standing with</div>
+      <div class="label">Standing with</div>
       ${rows.map(([label, value]) => `
-        <div style="display:flex;justify-content:space-between;gap:10px">
-          <span>${label}</span><b style="color:${value < 30 ? 'var(--warn)' : value > 65 ? 'var(--good)' : 'var(--ink)'}">${Math.round(value)}</b>
+        <div class="faction">
+          <span>${label}</span><b>${Math.round(value)}</b>
+          <i style="width:${Math.round(value)}%"></i>
         </div>`).join('')}`
   }
 
@@ -494,7 +630,7 @@ export class Game {
         ${annual > 0 ? `<div class="costs"><span class="yr">then ${money(annual)} every year</span></div>` : ''}`
 
       return `<button class="card ${state === 'selected' ? 'selected' : ''} ${state === 'locked' ? 'locked' : ''} ${state === 'unaffordable' || state === 'unavailable' ? 'unaffordable' : ''}"
-          data-id="${instrument.id}" ${state === 'locked' || state === 'unavailable' ? 'disabled' : ''}>
+          data-id="${instrument.id}" ${state === 'locked' || state === 'unavailable' || state === 'unaffordable' ? 'disabled' : ''}>
         <div class="name">${escapeHtml(instrument.label)}</div>
         <div class="desc">${escapeHtml(instrument.description)}</div>
         ${costs}
@@ -540,10 +676,17 @@ export class Game {
     const pc = chosen.reduce((total, i) => total + i.pcCost(this.state), 0)
     const headroom = borrowingHeadroom(this.state) - committedCapital(this.state)
 
-    el('commitlist').innerHTML = chosen.length === 0
+    // What last year would not start. Stated plainly, once, and then dropped.
+    const refused = this.rejected.length === 0 ? '' : `
+      <div class="refused">${this.rejected.map((r) => {
+        const label = instrumentById(r.instrumentId)?.label ?? r.instrumentId
+        return `<div>${escapeHtml(label)} &mdash; ${escapeHtml(r.reason)}</div>`
+      }).join('')}</div>`
+
+    el('commitlist').innerHTML = refused + (chosen.length === 0
       ? '<div class="none">Nothing. A year will pass anyway.</div>'
       : chosen.map((i) => `<div class="row"><span>${escapeHtml(i.label)}</span>
-          <button data-drop="${i.id}" title="remove">&times;</button></div>`).join('')
+          <button data-drop="${i.id}" title="remove">&times;</button></div>`).join(''))
 
     el('commitlist').querySelectorAll<HTMLElement>('[data-drop]').forEach((node) => {
       node.addEventListener('click', () => {
@@ -562,6 +705,10 @@ export class Game {
 
     const button = el<HTMLButtonElement>('advance')
     button.disabled = Boolean(this.state.ended) || overMoney || overPc
+    // A button that greys out without saying why reads as a broken button.
+    button.title = overMoney ? 'The plan is beyond this year\'s borrowing capacity.'
+      : overPc ? 'The plan costs more political capital than you have.'
+        : ''
     button.textContent = this.state.ended
       ? 'The run has ended'
       : `Advance to year ${this.state.year + 1}`
@@ -599,10 +746,19 @@ export class Game {
 
   private renderHint(): void {
     const s = this.state
-    const hint = s.ledgerUnlocked
-      ? 'The ledger is open to you now.'
-      : s.year === 0 ? 'Pick as much or as little as you like, then advance the year.'
-        : `${percent(s.modeShare.walk, 1)} of trips on foot &middot; ${Math.round(s.traffic.peakSpeedMph)} mph at the peak &middot; ${Math.round(s.environment.sidewalkNoiseDba)} dBA at the kerb`
+    /*
+     * The readout keeps running once the Ledger opens.
+     *
+     * It used to be replaced, permanently, by "The ledger is open to you now."
+     * - which is a ceremony, in a game whose whole register is a municipal
+     *   document, and it contradicted the comment on renderLedgerButton eight
+     *   lines away saying nothing announces the view as a reward. The button
+     *   appearing is the whole announcement. And it cost the player the live
+     *   figures for the remaining twenty years of the run.
+     */
+    const hint = s.year === 0
+      ? 'Pick as much or as little as you like, then advance the year.'
+      : `${percent(s.modeShare.walk, 1)} of trips on foot &middot; ${Math.round(s.traffic.peakSpeedMph)} mph at the peak &middot; ${Math.round(s.environment.sidewalkNoiseDba)} dBA at the kerb`
     el('hint').innerHTML = `<b>drag</b> pan &middot; <b>wheel</b> zoom &middot; <b>1&ndash;4</b> light &middot; `
       + `<b>Q W E T</b> season &middot; <b>V</b> drive &middot; <b>B</b> walk &middot; `
       + `<b>M</b> sound ${this.sound.isOn ? 'on' : 'off'}`
@@ -646,15 +802,55 @@ export class Game {
       this.renderer.zoomBy(event.deltaY < 0 ? 1.12 : 1 / 1.12)
     }, { passive: false })
 
-    el('advance').addEventListener('click', () => void this.advance())
+    el('advance').addEventListener('click', (event) => {
+      // Otherwise the button keeps focus and the next space press activates it
+      // again rather than skipping the year it just started.
+      ;(event.currentTarget as HTMLElement).blur()
+      void this.advance()
+    })
+    el('skip').addEventListener('click', () => this.skipTheYear())
     window.addEventListener('resize', () => this.fit())
 
     const LIGHTS: LightName[] = ['day', 'dusk', 'night', 'overcast']
     const SEASONS: Record<string, SeasonName> = { q: 'spring', w: 'summer', e: 'autumn', t: 'winter' }
+    /*
+     * Something is over the corridor and owns the keyboard.
+     *
+     * Without this every hotkey stayed live behind every dialogue: V while the
+     * newspaper was up opened the driving camera underneath it, so the player
+     * put the paper down onto a windscreen they never asked for. The paper,
+     * the glossary card, the provenance panel and the reckoning each dismiss
+     * themselves on their own keys and the game must keep its hands off.
+     */
+    const modalIsUp = (): boolean =>
+      ['paper', 'modal', 'why', 'reckveil', 'fp'].some((id) => {
+        const node = document.getElementById(id)
+        return !!node && !node.classList.contains('hidden')
+          && getComputedStyle(node).display !== 'none'
+      })
+
     window.addEventListener('keydown', (event) => {
       if (!this.started) return
+      if (modalIsUp()) return
+      /*
+       * A card is a <button>, and space is how a keyboard user presses a
+       * button. Swallowing it globally meant a keyboard player could never
+       * select an instrument: the space that should have added the roundabout
+       * to the plan burned the year instead. While the focus is in the dock,
+       * the keys belong to the dock.
+       */
+      const focus = document.activeElement
+      if (focus instanceof HTMLElement && focus.closest('#cards, #tabs, #commitlist')) return
       const key = event.key.toLowerCase()
-      if (key === ' ') { event.preventDefault(); void this.advance(); return }
+      if (key === ' ') {
+        event.preventDefault()
+        // While the seasons turn, space skips them. While the paper is up it
+        // belongs to the paper, which closes on it. Otherwise it starts a year.
+        if (this.watchingSeasons) this.skipTheYear()
+        else if (!this.advancing) void this.advance()
+        return
+      }
+      if (key === 'escape' && this.watchingSeasons) { this.skipTheYear(); return }
       if (key >= '1' && key <= '4') { this.renderer.setLight(LIGHTS[Number(key) - 1]!); return }
       if (key === 'v') { this.getOut('drive'); return }
       if (key === 'b') { this.getOut('walk'); return }

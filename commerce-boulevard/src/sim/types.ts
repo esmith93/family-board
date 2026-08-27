@@ -484,6 +484,15 @@ export interface SimState {
 
   /** Instruments the player has unlocked so far. */
   unlockedInstruments: string[]
+  /**
+   * Instruments that have actually taken effect, and the year they did.
+   *
+   * Not what was selected and not what is under construction: what is built
+   * and working. The glossary reads this, because the difference between a
+   * word the player earned and a word the game handed them is whether they
+   * did the thing, and nothing else in the state records that they did.
+   */
+  completed: Record<string, number>
   /** Ledger View is earned, never given. */
   ledgerUnlocked: boolean
 
@@ -502,6 +511,15 @@ export interface SimState {
     peakSpeedMph: number
     revenuePerAcre: number
     liabilityPerAcre: number
+    /*
+     * The rest are here for the glossary, which must be able to tell what the
+     * player CHANGED from what they were handed. A card that fires on the
+     * corridor as inherited is a card the game gave away.
+     */
+    designSpeedMph: number
+    walkShare: number
+    crashes: number
+    curbCuts: number
   }
 
   /**
